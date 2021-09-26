@@ -56,8 +56,8 @@ func (c *Cache) GetBlockHeader(chainID, blockID string) (header *BlockHeader, er
 		return
 	}
 
-	chainID = header.ChainID
-	blockID = header.Hash
+	chainID = header.ChainID.String()
+	blockID = header.Hash.String()
 
 	var data bytes.Buffer
 	if err = gob.NewEncoder(&data).Encode(header); err != nil {

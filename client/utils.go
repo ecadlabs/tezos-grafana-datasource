@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"math/big"
 	"strconv"
+
+	"github.com/btcsuite/btcutil/base58"
 )
 
 type Int64Array []int64
@@ -67,4 +69,26 @@ func (val *Bytes) UnmarshalText(text []byte) (err error) {
 
 func (val Bytes) MarshalText() ([]byte, error) {
 	return []byte(hex.EncodeToString(val)), nil
+}
+
+type Base58 []byte
+
+func (val *Base58) UnmarshalText(text []byte) error {
+	buf, ver, err := base58.CheckDecode(string(text))
+	if err != nil {
+		return err
+	}
+	*val = append([]byte{ver}, buf...)
+	return nil
+}
+
+func (val Base58) MarshalText() ([]byte, error) {
+	return []byte(val.String()), nil
+}
+
+func (val Base58) String() string {
+	if len(val) == 0 {
+		return ""
+	}
+	return base58.CheckEncode(val[1:], val[0])
 }

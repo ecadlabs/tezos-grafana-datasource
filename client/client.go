@@ -19,22 +19,22 @@ func (h *HTTPError) Error() string {
 }
 
 type BlockHeader struct {
-	Protocol                  string    `json:"protocol"`
-	ChainID                   string    `json:"chain_id"`
-	Hash                      string    `json:"hash"`
+	Protocol                  Base58    `json:"protocol"`
+	ChainID                   Base58    `json:"chain_id"`
+	Hash                      Base58    `json:"hash"`
 	Level                     int64     `json:"level"`
 	Proto                     uint      `json:"proto"`
-	Predecessor               string    `json:"predecessor"`
+	Predecessor               Base58    `json:"predecessor"`
 	Timestamp                 time.Time `json:"timestamp"`
 	ValidationPass            uint      `json:"validation_pass"`
-	OperationsHash            string    `json:"operations_hash"`
+	OperationsHash            Base58    `json:"operations_hash"`
 	Fitness                   []Bytes   `json:"fitness"`
-	Context                   string    `json:"context"`
+	Context                   Base58    `json:"context"`
 	Priority                  uint      `json:"priority"`
 	ProofOfWorkNonce          Bytes     `json:"proof_of_work_nonce"`
-	SeedNonceHash             string    `json:"seed_nonce_hash"`
+	SeedNonceHash             Base58    `json:"seed_nonce_hash,omitempty"`
 	LiquidityBakingEscapeVote bool      `json:"liquidity_baking_escape_vote"`
-	Signature                 string    `json:"signature"`
+	Signature                 Base58    `json:"signature"`
 }
 
 type BlockContextConstants struct {
