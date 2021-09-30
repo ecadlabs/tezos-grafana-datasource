@@ -1,11 +1,16 @@
 package client
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strconv"
 	"time"
+
+	"github.com/ecadlabs/tezos-grafana-datasource/storage"
 )
 
 type HTTPError struct {
@@ -16,62 +21,6 @@ type HTTPError struct {
 
 func (h *HTTPError) Error() string {
 	return fmt.Sprintf("(%s) %s", h.Status, string(h.Body))
-}
-
-type BlockHeader struct {
-	Protocol                  Base58    `json:"protocol"`
-	ChainID                   Base58    `json:"chain_id"`
-	Hash                      Base58    `json:"hash"`
-	Level                     int64     `json:"level"`
-	Proto                     uint      `json:"proto"`
-	Predecessor               Base58    `json:"predecessor"`
-	Timestamp                 time.Time `json:"timestamp"`
-	ValidationPass            uint      `json:"validation_pass"`
-	OperationsHash            Base58    `json:"operations_hash"`
-	Fitness                   []Bytes   `json:"fitness"`
-	Context                   Base58    `json:"context"`
-	Priority                  uint      `json:"priority"`
-	ProofOfWorkNonce          Bytes     `json:"proof_of_work_nonce"`
-	SeedNonceHash             Base58    `json:"seed_nonce_hash,omitempty"`
-	LiquidityBakingEscapeVote bool      `json:"liquidity_baking_escape_vote"`
-	Signature                 Base58    `json:"signature"`
-}
-
-type BlockContextConstants struct {
-	ProofOfWorkNonceSize              uint       `json:"proof_of_work_nonce_size"`
-	NonceLength                       uint       `json:"nonce_length"`
-	MaxAnonOpsPerBlock                uint       `json:"max_anon_ops_per_block"`
-	MaxOperationDataLength            int64      `json:"max_operation_data_length"`
-	MaxProposalsPerDelegate           uint       `json:"max_proposals_per_delegate"`
-	PreservedCycles                   uint       `json:"preserved_cycles"`
-	BlocksPerCycle                    int64      `json:"blocks_per_cycle"`
-	BlocksPerCommitment               int64      `json:"blocks_per_commitment"`
-	BlocksPerRollSnapshot             int64      `json:"blocks_per_roll_snapshot"`
-	BlocksPerVotingPeriod             int64      `json:"blocks_per_voting_period"`
-	TimeBetweenBlocks                 Int64Array `json:"time_between_blocks"`
-	EndorsersPerBlock                 uint       `json:"endorsers_per_block"`
-	HardGasLimitPerOperation          *BigInt    `json:"hard_gas_limit_per_operation"`
-	HardGasLimitPerBlock              *BigInt    `json:"hard_gas_limit_per_block"`
-	ProofOfWorkThreshold              int64      `json:"proof_of_work_threshold,string"`
-	TokensPerRoll                     *BigInt    `json:"tokens_per_roll"`
-	MichelsonMaximumTypeSize          uint       `json:"michelson_maximum_type_size"`
-	SeedNonceRevelationTip            *BigInt    `json:"seed_nonce_revelation_tip"`
-	OriginationSize                   int64      `json:"origination_size"`
-	BlockSecurityDeposit              *BigInt    `json:"block_security_deposit"`
-	EndorsementSecurityDeposit        *BigInt    `json:"endorsement_security_deposit"`
-	BakingRewardPerEndorsement        []*BigInt  `json:"baking_reward_per_endorsement"`
-	EndorsementReward                 []*BigInt  `json:"endorsement_reward"`
-	CostPerByte                       *BigInt    `json:"cost_per_byte"`
-	HardStorageLimitPerOperation      *BigInt    `json:"hard_storage_limit_per_operation"`
-	QuorumMin                         int64      `json:"quorum_min"`
-	QuorumMax                         int64      `json:"quorum_max"`
-	MinProposalQuorum                 int64      `json:"min_proposal_quorum"`
-	InitialEndorsers                  uint       `json:"initial_endorsers"`
-	DelayPerMissingEndorsement        int64      `json:"delay_per_missing_endorsement,string"`
-	MinimalBlockDelay                 int64      `json:"minimal_block_delay,string"`
-	LiquidityBakingSubsidy            *BigInt    `json:"liquidity_baking_subsidy"`
-	LiquidityBakingSunsetLevel        int64      `json:"liquidity_baking_sunset_level"`
-	LiquidityBakingEscapeEMAThreshold int64      `json:"liquidity_baking_escape_ema_threshold"`
 }
 
 type Client struct {
@@ -116,13 +65,13 @@ func (c *Client) do(r *http.Request) (io.ReadCloser, error) {
 	return res.Body, nil
 }
 
-func (c *Client) NewGetBlockHeaderRequest(id string) (*http.Request, error) {
-	url := fmt.Sprintf("%s/chains/%s/blocks/%s/header", c.URL, c.chain(), id)
-	return http.NewRequest("GET", url, nil)
+func (c *Client) NewGetBlockHeaderRequest(ctx context.Context, blockID string) (*http.Request, error) {
+	u := fmt.Sprintf("%s/chains/%s/blocks/%s/header", c.URL, c.chain(), blockID)
+	return http.NewRequestWithContext(ctx, "GET", u, nil)
 }
 
-func (c *Client) GetBlockHeader(id string) (*BlockHeader, error) {
-	req, err := c.NewGetBlockHeaderRequest(id)
+func (c *Client) GetBlockHeader(ctx context.Context, blockID string) (*storage.BlockHeader, error) {
+	req, err := c.NewGetBlockHeaderRequest(ctx, blockID)
 	if err != nil {
 		return nil, err
 	}
@@ -132,20 +81,22 @@ func (c *Client) GetBlockHeader(id string) (*BlockHeader, error) {
 	}
 	defer res.Close()
 
-	var v BlockHeader
-	if err := json.NewDecoder(res).Decode(&v); err != nil {
+	var v storage.BlockHeader
+	dec := json.NewDecoder(res)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&v); err != nil {
 		return nil, err
 	}
 	return &v, nil
 }
 
-func (c *Client) NewGetBlockContextConstantsRequest(id string) (*http.Request, error) {
-	url := fmt.Sprintf("%s/chains/%s/blocks/%s/context/constants", c.URL, c.chain(), id)
-	return http.NewRequest("GET", url, nil)
+func (c *Client) NewGetProtocolConstantsRequest(ctx context.Context) (*http.Request, error) {
+	u := fmt.Sprintf("%s/chains/%s/blocks/head/context/constants", c.URL, c.chain())
+	return http.NewRequestWithContext(ctx, "GET", u, nil)
 }
 
-func (c *Client) GetBlockContextConstants(id string) (*BlockContextConstants, error) {
-	req, err := c.NewGetBlockContextConstantsRequest(id)
+func (c *Client) GetProtocolConstants(ctx context.Context) (*storage.ProtocolConstants, error) {
+	req, err := c.NewGetProtocolConstantsRequest(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -155,9 +106,88 @@ func (c *Client) GetBlockContextConstants(id string) (*BlockContextConstants, er
 	}
 	defer res.Close()
 
-	var v BlockContextConstants
-	if err := json.NewDecoder(res).Decode(&v); err != nil {
+	var v storage.ProtocolConstants
+	dec := json.NewDecoder(res)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&v); err != nil {
 		return nil, err
 	}
 	return &v, nil
+}
+
+func (c *Client) NewGetBlockOperationsRequest(ctx context.Context, blockID string) (*http.Request, error) {
+	u := fmt.Sprintf("%s/chains/%s/blocks/%s/operations", c.URL, c.chain(), blockID)
+	return http.NewRequestWithContext(ctx, "GET", u, nil)
+}
+
+func (c *Client) GetBlockOperations(ctx context.Context, blockID string) (storage.BlockOperations, error) {
+	req, err := c.NewGetBlockOperationsRequest(ctx, blockID)
+	if err != nil {
+		return nil, err
+	}
+	res, err := c.do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Close()
+
+	var v storage.BlockOperations
+	dec := json.NewDecoder(res)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&v); err != nil {
+		return nil, err
+	}
+	return v, nil
+}
+
+/*
+func newJSONRequest(ctx context.Context, method, url string, body interface{}) (*http.Request, error) {
+	var rd io.Reader
+	if body != nil {
+		var buf bytes.Buffer
+		if err := json.NewEncoder(&buf).Encode(body); err != nil {
+			return nil, err
+		}
+		rd = &buf
+	}
+	req, err := http.NewRequestWithContext(ctx, method, url, rd)
+	if err != nil {
+		return nil, err
+	}
+	if body != nil {
+		req.Header.Add("Content-Type", "application/json")
+	}
+	return req, nil
+}
+*/
+
+func (c *Client) NewGetMinimalValidTimeRequest(ctx context.Context, blockID string, priority, power int) (*http.Request, error) {
+	u, err := url.Parse(fmt.Sprintf("%s/chains/%s/blocks/%s/minimal_valid_time", c.URL, c.chain(), blockID))
+	if err != nil {
+		return nil, err
+	}
+	u.RawQuery = url.Values{
+		"priority":        []string{strconv.FormatInt(int64(priority), 10)},
+		"endorsing_power": []string{strconv.FormatInt(int64(power), 10)},
+	}.Encode()
+	return http.NewRequestWithContext(ctx, "GET", u.String(), nil)
+}
+
+func (c *Client) GetMinimalValidTime(ctx context.Context, blockID string, priority, power int) (t time.Time, err error) {
+	req, err := c.NewGetMinimalValidTimeRequest(ctx, blockID, priority, power)
+	if err != nil {
+		return
+	}
+	res, err := c.do(req)
+	if err != nil {
+		return
+	}
+	defer res.Close()
+
+	dec := json.NewDecoder(res)
+	dec.DisallowUnknownFields()
+	if err = dec.Decode(&t); err != nil {
+		return
+	}
+	return
 }
