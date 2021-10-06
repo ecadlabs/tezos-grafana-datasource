@@ -1,6 +1,8 @@
-package storage
+package model
 
 import (
+	"bytes"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"math/big"
@@ -20,6 +22,21 @@ func (val *Int64) UnmarshalText(text []byte) error {
 
 func (val Int64) MarshalText() ([]byte, error) {
 	return []byte(strconv.FormatInt(int64(val), 10)), nil
+}
+
+func (val *Int64) UnmarshalBinary(data []byte) error {
+	n, err := binary.ReadVarint(bytes.NewReader(data))
+	if err != nil {
+		return err
+	}
+	*val = Int64(n)
+	return nil
+}
+
+func (val Int64) MarshalBinary() (data []byte, err error) {
+	buf := make([]byte, binary.MaxVarintLen64)
+	n := binary.PutVarint(buf, int64(val))
+	return buf[:n], nil
 }
 
 type BigInt struct {
@@ -54,4 +71,19 @@ func (val *Bytes) UnmarshalText(text []byte) (err error) {
 
 func (val Bytes) MarshalText() ([]byte, error) {
 	return []byte(hex.EncodeToString(val)), nil
+}
+
+type Base58 []byte
+
+func (b Base58) String() string {
+	return EncodeBase58Check(b)
+}
+
+func (val *Base58) UnmarshalText(text []byte) (err error) {
+	*val, err = DecodeBase58Check(string(text))
+	return
+}
+
+func (val Base58) MarshalText() ([]byte, error) {
+	return []byte(EncodeBase58Check(val)), nil
 }

@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/ecadlabs/tezos-grafana-datasource/client"
+	"github.com/ecadlabs/tezos-grafana-datasource/model"
 	"github.com/ecadlabs/tezos-grafana-datasource/storage"
 )
 
@@ -13,109 +14,83 @@ type Datasource struct {
 	Client *client.Client
 }
 
-type BlockInfo struct {
-	*storage.BlockHeader
-	*storage.BlockStat
-	PredecessorTimestamp time.Time
+type BlockTimeInfo struct {
+	*model.BlockInfo
+	PredecessorTimestamp time.Time     `json:"predecessor_timestamp"`
+	MinDelay             time.Duration `json:"minimal_delay"`
+	Delay                time.Duration `json:"delay"`
 }
 
-func (d *Datasource) GetBlockTimes(ctx context.Context, start, end time.Time) ([]*BlockInfo, error) {
-	var (
-		blocks    []*BlockInfo
-		prevBlock *BlockInfo
-	)
-	nextBlock := "head"
-	for {
-		var (
-			header *storage.BlockHeader
-			err    error
-		)
-		if nextBlock != "head" {
-			header, err = d.DB.GetBlockHeader(ctx, nextBlock)
-			if err != nil {
-				return nil, err
-			}
-		}
-		if header == nil {
-			header, err = d.Client.GetBlockHeader(ctx, nextBlock)
-			if err != nil {
-				return nil, err
-			}
-			if err = d.DB.UpdateBlockHeader(ctx, header); err != nil {
-				return nil, err
-			}
-		}
+func (d *Datasource) getBlockInfo(ctx context.Context, blockID model.Base58) (*model.BlockInfo, error) {
+	info, err := d.DB.GetBlockInfo(ctx, blockID)
+	if err != nil {
+		return nil, err
+	}
+	if info != nil {
+		return info, nil
+	}
+	block, err := d.Client.GetBlock(ctx, blockID.String())
+	if err != nil {
+		return nil, err
+	}
+	stat := block.Stat()
+	ts, err := d.Client.GetMinimalValidTime(ctx, block.Header.Predecessor.String(), int(block.Header.Priority), int(stat.Slots))
+	if err != nil {
+		return nil, err
+	}
+	info = &model.BlockInfo{
+		Header:       block.GetHeader(),
+		Stat:         stat,
+		MinValidTime: ts,
+	}
+	if err = d.DB.UpdateBlockInfo(ctx, info); err != nil {
+		return nil, err
+	}
+	return info, nil
+}
 
-		info := &BlockInfo{
-			BlockHeader: header,
+func (d *Datasource) GetBlockTimes(ctx context.Context, start, end time.Time) ([]*BlockTimeInfo, error) {
+	// get head first
+	h, err := d.Client.GetBlockHeader(ctx, "head")
+	if err != nil {
+		return nil, err
+	}
+	nextBlock := h.Hash
+
+	var (
+		blocks    []*BlockTimeInfo
+		prevBlock *BlockTimeInfo
+	)
+	for {
+		i, err := d.getBlockInfo(ctx, nextBlock)
+		if err != nil {
+			return nil, err
+		}
+		info := &BlockTimeInfo{
+			BlockInfo: i,
 		}
 
 		if prevBlock != nil {
-			prevBlock.PredecessorTimestamp = header.Timestamp
+			prevBlock.PredecessorTimestamp = info.Header.Timestamp
+			prevBlock.Delay = prevBlock.Header.Timestamp.Sub(info.Header.Timestamp)
+			prevBlock.MinDelay = prevBlock.MinValidTime.Sub(info.Header.Timestamp)
 		}
 
-		if header.Timestamp.Before(start) {
+		if info.Header.Timestamp.Before(start) {
 			break
 		}
 
 		prevBlock = info
-		nextBlock = header.Predecessor
+		nextBlock = info.Header.Predecessor
 
-		if !header.Timestamp.Before(end) {
+		if !info.Header.Timestamp.Before(end) {
 			continue
 		}
-
-		stat, err := d.DB.GetBlockStat(ctx, header.Hash)
-		if err != nil {
-			return nil, err
-		}
-
-		if stat == nil {
-			ops, err := d.Client.GetBlockOperations(ctx, header.Hash)
-			if err != nil {
-				return nil, err
-			}
-
-			// calculate endorsing power
-			var slots int
-			for _, tmp := range ops {
-				for _, operation := range tmp {
-					for _, contents := range operation.Contents {
-						switch e := contents.(type) {
-						case *storage.EndorsementWithSlot:
-							if e.Metadata != nil {
-								slots += len(e.Metadata.Slots)
-							}
-						case *storage.Endorsement:
-							if e.Metadata != nil {
-								slots += len(e.Metadata.Slots)
-							}
-						}
-					}
-				}
-			}
-
-			ts, err := d.Client.GetMinimalValidTime(ctx, header.Predecessor, int(header.Priority), slots)
-			if err != nil {
-				return nil, err
-			}
-
-			stat = &storage.BlockStat{
-				MinimalValidTime: ts,
-				EndorsementSlots: uint(slots),
-			}
-
-			if err = d.DB.UpdateBlockStat(ctx, header.Hash, stat); err != nil {
-				return nil, err
-			}
-		}
-
-		info.BlockStat = stat
 		blocks = append(blocks, info)
 	}
 
 	// reverse
-	res := make([]*BlockInfo, len(blocks))
+	res := make([]*BlockTimeInfo, len(blocks))
 	for i, b := range blocks {
 		res[len(blocks)-i-1] = b
 	}

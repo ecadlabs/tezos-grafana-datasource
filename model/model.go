@@ -1,4 +1,4 @@
-package storage
+package model
 
 import (
 	"bytes"
@@ -6,23 +6,102 @@ import (
 	"time"
 )
 
+type Block struct {
+	Protocol   Base58          `json:"protocol"`
+	ChainID    Base58          `json:"chain_id"`
+	Hash       Base58          `json:"hash"`
+	Header     RawBlockHeader  `json:"header"`
+	Metadata   json.RawMessage `json:"metadata,omitempty"`
+	Operations BlockOperations `json:"operations"`
+}
+
+func (b *Block) GetHeader() *BlockHeader {
+	return &BlockHeader{
+		RawBlockHeader: b.Header,
+		Protocol:       b.Protocol,
+		ChainID:        b.ChainID,
+		Hash:           b.Hash,
+	}
+}
+
+func (b *Block) Stat() *BlockStatistics {
+	var (
+		slots int
+		opCnt int
+		ops   NumOps
+	)
+	for _, tmp := range b.Operations {
+		for _, operation := range tmp {
+			for _, contents := range operation.Contents {
+				opCnt++
+				switch op := contents.(type) {
+				case *EndorsementWithSlot:
+					ops.Endorsement++
+					if op.Metadata != nil {
+						slots += len(op.Metadata.Slots)
+					}
+				case *Endorsement:
+					ops.Endorsement++
+					if op.Metadata != nil {
+						slots += len(op.Metadata.Slots)
+					}
+				case OpaqueOperation:
+					switch op.OperationKind() {
+					case "seed_nonce_revelation":
+						ops.SeedNonceRevelation++
+					case "double_endorsement_evidence":
+						ops.DoubleEndorsementEvidence++
+					case "double_baking_evidence":
+						ops.DoubleBakingEvidence++
+					case "activate_account":
+						ops.ActivateAccount++
+					case "proposals":
+						ops.Proposals++
+					case "ballot":
+						ops.Ballot++
+					case "reveal":
+						ops.Reveal++
+					case "transaction":
+						ops.Transaction++
+					case "origination":
+						ops.Origination++
+					case "delegation":
+						ops.Delegation++
+					case "failing_noop":
+						ops.FailingNoop++
+					}
+				}
+			}
+		}
+	}
+	return &BlockStatistics{
+		NumOps: uint64(opCnt),
+		Ops:    &ops,
+		Slots:  uint64(slots),
+	}
+}
+
 type BlockHeader struct {
-	Protocol                  string    `json:"protocol"`
-	ChainID                   string    `json:"chain_id"`
-	Hash                      string    `json:"hash"`
+	Protocol Base58 `json:"protocol"`
+	ChainID  Base58 `json:"chain_id"`
+	Hash     Base58 `json:"hash"`
+	RawBlockHeader
+}
+
+type RawBlockHeader struct {
 	Level                     int64     `json:"level"`
 	Proto                     uint64    `json:"proto"`
-	Predecessor               string    `json:"predecessor"`
+	Predecessor               Base58    `json:"predecessor"`
 	Timestamp                 time.Time `json:"timestamp"`
 	ValidationPass            uint64    `json:"validation_pass"`
-	OperationsHash            string    `json:"operations_hash"`
+	OperationsHash            Base58    `json:"operations_hash"`
 	Fitness                   []Bytes   `json:"fitness"`
-	Context                   string    `json:"context"`
+	Context                   Base58    `json:"context"`
 	Priority                  uint64    `json:"priority"`
 	ProofOfWorkNonce          Bytes     `json:"proof_of_work_nonce"`
-	SeedNonceHash             string    `json:"seed_nonce_hash,omitempty"`
+	SeedNonceHash             Base58    `json:"seed_nonce_hash,omitempty"`
 	LiquidityBakingEscapeVote bool      `json:"liquidity_baking_escape_vote"`
-	Signature                 string    `json:"signature"`
+	Signature                 Base58    `json:"signature"`
 }
 
 type ProtocolConstants struct {
@@ -65,12 +144,12 @@ type ProtocolConstants struct {
 type BlockOperations [][]*BlockOperation
 
 type BlockOperation struct {
-	Protocol  string                 `json:"protocol"`
-	ChainID   string                 `json:"chain_id"`
-	Hash      string                 `json:"hash"`
-	Branch    string                 `json:"branch"`
+	Protocol  Base58                 `json:"protocol"`
+	ChainID   Base58                 `json:"chain_id"`
+	Hash      Base58                 `json:"hash"`
+	Branch    Base58                 `json:"branch"`
 	Contents  BlockOperationContents `json:"contents"`
-	Signature string                 `json:"signature,omitempty"`
+	Signature Base58                 `json:"signature,omitempty"`
 }
 
 type BlockOperationContents []Operation
@@ -122,9 +201,9 @@ type EndorsementWithSlot struct {
 }
 
 type InlinedEndorsement struct {
-	Branch     string                     `json:"branch"`
+	Branch     Base58                     `json:"branch"`
 	Operations InlinedEndorsementContents `json:"operations"`
-	Signature  string                     `json:"signature,omitempty"`
+	Signature  Base58                     `json:"signature,omitempty"`
 }
 
 type InlinedEndorsementContents struct {
@@ -134,7 +213,7 @@ type InlinedEndorsementContents struct {
 
 type EndorsementMetadata struct {
 	BalanceUpdates BalanceUpdates `json:"balance_updates"`
-	Delegate       string         `json:"delegate"`
+	Delegate       Base58         `json:"delegate"`
 	Slots          []uint64       `json:"slots"`
 }
 
@@ -167,7 +246,7 @@ type BalanceUpdate interface {
 
 type ContractBalanceUpdate struct {
 	Kind     string `json:"kind"`
-	Contract string `json:"contract"`
+	Contract Base58 `json:"contract"`
 	Change   Int64  `json:"change"`
 	Origin   string `json:"origin"`
 }
@@ -179,7 +258,7 @@ func (*ContractBalanceUpdate) BalanceUpdateKind() string {
 type NonContractBalanceUpdate struct {
 	Kind     string `json:"kind"`
 	Category string `json:"category"`
-	Delegate string `json:"delegate"`
+	Delegate Base58 `json:"delegate"`
 	Cycle    int64  `json:"cycle"`
 	Change   Int64  `json:"change"`
 	Origin   string `json:"origin"`
@@ -222,4 +301,31 @@ func (u *BalanceUpdates) UnmarshalJSON(text []byte) error {
 	}
 	*u = res
 	return nil
+}
+
+type BlockInfo struct {
+	Header       *BlockHeader     `json:"header"`
+	Stat         *BlockStatistics `json:"statistics"`
+	MinValidTime time.Time        `json:"minimal_valid_time"`
+}
+
+type BlockStatistics struct {
+	NumOps uint64  `json:"n_ops_total"`
+	Ops    *NumOps `json:"n_ops"`
+	Slots  uint64  `json:"endorsement_slots"`
+}
+
+type NumOps struct {
+	Endorsement               uint64 `json:"endorsement"`
+	SeedNonceRevelation       uint64 `json:"seed_nonce_revelation"`
+	DoubleEndorsementEvidence uint64 `json:"double_endorsement_evidence"`
+	DoubleBakingEvidence      uint64 `json:"double_baking_evidence"`
+	ActivateAccount           uint64 `json:"activate_account"`
+	Proposals                 uint64 `json:"proposals"`
+	Ballot                    uint64 `json:"ballot"`
+	Reveal                    uint64 `json:"reveal"`
+	Transaction               uint64 `json:"transaction"`
+	Origination               uint64 `json:"origination"`
+	Delegation                uint64 `json:"delegation"`
+	FailingNoop               uint64 `json:"failing_noop"`
 }

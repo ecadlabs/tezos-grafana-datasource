@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ecadlabs/tezos-grafana-datasource/storage"
+	"github.com/ecadlabs/tezos-grafana-datasource/model"
 )
 
 type HTTPError struct {
@@ -70,22 +70,47 @@ func (c *Client) NewGetBlockHeaderRequest(ctx context.Context, blockID string) (
 	return http.NewRequestWithContext(ctx, "GET", u, nil)
 }
 
-func (c *Client) GetBlockHeader(ctx context.Context, blockID string) (*storage.BlockHeader, error) {
+func (c *Client) GetBlockHeader(ctx context.Context, blockID string) (*model.BlockHeader, error) {
 	req, err := c.NewGetBlockHeaderRequest(ctx, blockID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("getBlockHeader: %w", err)
 	}
 	res, err := c.do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("getBlockHeader: %w", err)
 	}
 	defer res.Close()
 
-	var v storage.BlockHeader
+	var v model.BlockHeader
 	dec := json.NewDecoder(res)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&v); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("getBlockHeader: %w", err)
+	}
+	return &v, nil
+}
+
+func (c *Client) NewGetBlockRequest(ctx context.Context, blockID string) (*http.Request, error) {
+	u := fmt.Sprintf("%s/chains/%s/blocks/%s", c.URL, c.chain(), blockID)
+	return http.NewRequestWithContext(ctx, "GET", u, nil)
+}
+
+func (c *Client) GetBlock(ctx context.Context, blockID string) (*model.Block, error) {
+	req, err := c.NewGetBlockRequest(ctx, blockID)
+	if err != nil {
+		return nil, fmt.Errorf("getBlock: %w", err)
+	}
+	res, err := c.do(req)
+	if err != nil {
+		return nil, fmt.Errorf("getBlock: %w", err)
+	}
+	defer res.Close()
+
+	var v model.Block
+	dec := json.NewDecoder(res)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(&v); err != nil {
+		return nil, fmt.Errorf("getBlock: %w", err)
 	}
 	return &v, nil
 }
@@ -95,22 +120,22 @@ func (c *Client) NewGetProtocolConstantsRequest(ctx context.Context) (*http.Requ
 	return http.NewRequestWithContext(ctx, "GET", u, nil)
 }
 
-func (c *Client) GetProtocolConstants(ctx context.Context) (*storage.ProtocolConstants, error) {
+func (c *Client) GetProtocolConstants(ctx context.Context) (*model.ProtocolConstants, error) {
 	req, err := c.NewGetProtocolConstantsRequest(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("getProtocolConstants: %w", err)
 	}
 	res, err := c.do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("getProtocolConstants: %w", err)
 	}
 	defer res.Close()
 
-	var v storage.ProtocolConstants
+	var v model.ProtocolConstants
 	dec := json.NewDecoder(res)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&v); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("getProtocolConstants: %w", err)
 	}
 	return &v, nil
 }
@@ -120,46 +145,25 @@ func (c *Client) NewGetBlockOperationsRequest(ctx context.Context, blockID strin
 	return http.NewRequestWithContext(ctx, "GET", u, nil)
 }
 
-func (c *Client) GetBlockOperations(ctx context.Context, blockID string) (storage.BlockOperations, error) {
+func (c *Client) GetBlockOperations(ctx context.Context, blockID string) (model.BlockOperations, error) {
 	req, err := c.NewGetBlockOperationsRequest(ctx, blockID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("getBlockOperations: %w", err)
 	}
 	res, err := c.do(req)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("getBlockOperations: %w", err)
 	}
 	defer res.Close()
 
-	var v storage.BlockOperations
+	var v model.BlockOperations
 	dec := json.NewDecoder(res)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&v); err != nil {
-		return nil, err
+		return nil, fmt.Errorf("getBlockOperations: %w", err)
 	}
 	return v, nil
 }
-
-/*
-func newJSONRequest(ctx context.Context, method, url string, body interface{}) (*http.Request, error) {
-	var rd io.Reader
-	if body != nil {
-		var buf bytes.Buffer
-		if err := json.NewEncoder(&buf).Encode(body); err != nil {
-			return nil, err
-		}
-		rd = &buf
-	}
-	req, err := http.NewRequestWithContext(ctx, method, url, rd)
-	if err != nil {
-		return nil, err
-	}
-	if body != nil {
-		req.Header.Add("Content-Type", "application/json")
-	}
-	return req, nil
-}
-*/
 
 func (c *Client) NewGetMinimalValidTimeRequest(ctx context.Context, blockID string, priority, power int) (*http.Request, error) {
 	u, err := url.Parse(fmt.Sprintf("%s/chains/%s/blocks/%s/minimal_valid_time", c.URL, c.chain(), blockID))
@@ -173,21 +177,22 @@ func (c *Client) NewGetMinimalValidTimeRequest(ctx context.Context, blockID stri
 	return http.NewRequestWithContext(ctx, "GET", u.String(), nil)
 }
 
-func (c *Client) GetMinimalValidTime(ctx context.Context, blockID string, priority, power int) (t time.Time, err error) {
+func (c *Client) GetMinimalValidTime(ctx context.Context, blockID string, priority, power int) (time.Time, error) {
 	req, err := c.NewGetMinimalValidTimeRequest(ctx, blockID, priority, power)
 	if err != nil {
-		return
+		return time.Time{}, fmt.Errorf("getMinimalValidTime: %w", err)
 	}
 	res, err := c.do(req)
 	if err != nil {
-		return
+		return time.Time{}, fmt.Errorf("getMinimalValidTime: %w", err)
 	}
 	defer res.Close()
 
 	dec := json.NewDecoder(res)
 	dec.DisallowUnknownFields()
+	var t time.Time
 	if err = dec.Decode(&t); err != nil {
-		return
+		return time.Time{}, fmt.Errorf("getMinimalValidTime: %w", err)
 	}
-	return
+	return t, nil
 }

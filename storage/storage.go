@@ -2,19 +2,11 @@ package storage
 
 import (
 	"context"
-	"time"
+
+	"github.com/ecadlabs/tezos-grafana-datasource/model"
 )
 
-type BlockStat struct {
-	MinimalValidTime time.Time
-	EndorsementSlots uint
-}
-
 type BlockInfoStorage interface {
-	GetBlockHeader(ctx context.Context, blockID string) (header *BlockHeader, err error)
-	UpdateBlockHeader(ctx context.Context, header *BlockHeader) error
-	GetProtocolConstants(ctx context.Context, chainID string) (constants *ProtocolConstants, err error)
-	UpdateProtocolConstants(ctx context.Context, chainID string, constants *ProtocolConstants) error
-	GetBlockStat(ctx context.Context, blockID string) (s *BlockStat, err error)
-	UpdateBlockStat(ctx context.Context, blockID string, s *BlockStat) error
+	GetBlockInfo(ctx context.Context, blockID model.Base58) (s *model.BlockInfo, err error)
+	UpdateBlockInfo(ctx context.Context, s *model.BlockInfo) error
 }
