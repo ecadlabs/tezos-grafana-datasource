@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/ecadlabs/tezos-grafana-datasource/model"
+	"github.com/ecadlabs/tezos-grafana-datasource/pkg/model"
 )
 
 type HTTPError struct {
@@ -195,4 +195,38 @@ func (c *Client) GetMinimalValidTime(ctx context.Context, blockID string, priori
 		return time.Time{}, fmt.Errorf("getMinimalValidTime: %w", err)
 	}
 	return t, nil
+}
+
+func (c *Client) NewGetMonitorHeadsRequest(ctx context.Context) (*http.Request, error) {
+	u := fmt.Sprintf("%s/monitor/heads/%s", c.URL, c.chain())
+	return http.NewRequestWithContext(ctx, "GET", u, nil)
+}
+
+func (c *Client) GetMonitorHeads(ctx context.Context) (header <-chan *model.ShellBlockHeader, errors <-chan error, err error) {
+	req, err := c.NewGetMonitorHeadsRequest(ctx)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getMonitorHeads: %w", err)
+	}
+	res, err := c.do(req)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getMonitorHeads: %w", err)
+	}
+	headerCh := make(chan *model.ShellBlockHeader, 100)
+	errorsCh := make(chan error, 1)
+	go func() {
+		defer res.Close()
+		defer close(headerCh)
+		defer close(errorsCh)
+		dec := json.NewDecoder(res)
+		dec.DisallowUnknownFields()
+		for {
+			var v model.ShellBlockHeader
+			if err := dec.Decode(&v); err != nil {
+				errorsCh <- err
+				return
+			}
+			headerCh <- &v
+		}
+	}()
+	return headerCh, errorsCh, nil
 }

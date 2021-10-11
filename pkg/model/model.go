@@ -81,6 +81,19 @@ func (b *Block) Stat() *BlockStatistics {
 	}
 }
 
+type ShellBlockHeader struct {
+	Hash           Base58    `json:"hash"`
+	Level          int64     `json:"level"`
+	Proto          uint64    `json:"proto"`
+	Predecessor    Base58    `json:"predecessor"`
+	Timestamp      time.Time `json:"timestamp"`
+	ValidationPass uint64    `json:"validation_pass"`
+	OperationsHash Base58    `json:"operations_hash"`
+	Fitness        []Bytes   `json:"fitness"`
+	Context        Base58    `json:"context"`
+	ProtocolData   Bytes     `json:"protocol_data"`
+}
+
 type BlockHeader struct {
 	Protocol Base58 `json:"protocol"`
 	ChainID  Base58 `json:"chain_id"`

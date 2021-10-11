@@ -5,8 +5,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/ecadlabs/tezos-grafana-datasource/model"
-	"github.com/ecadlabs/tezos-grafana-datasource/storage"
+	"github.com/ecadlabs/tezos-grafana-datasource/pkg/model"
+	"github.com/ecadlabs/tezos-grafana-datasource/pkg/storage"
 )
 
 const (

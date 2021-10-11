@@ -3,7 +3,7 @@ package storage
 import (
 	"context"
 
-	"github.com/ecadlabs/tezos-grafana-datasource/model"
+	"github.com/ecadlabs/tezos-grafana-datasource/pkg/model"
 )
 
 type BlockInfoStorage interface {
