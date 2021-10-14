@@ -14,7 +14,7 @@ type Datasource struct {
 	Client *client.Client
 }
 
-type BlockTimeInfo struct {
+type BlockInfo struct {
 	*model.BlockInfo
 	PredecessorTimestamp time.Time     `json:"predecessor_timestamp"`
 	MinDelay             time.Duration `json:"minimal_delay"`
@@ -49,7 +49,7 @@ func (d *Datasource) getBlockInfo(ctx context.Context, blockID model.Base58) (*m
 	return info, nil
 }
 
-func (d *Datasource) GetBlockTimes(ctx context.Context, start, end time.Time) ([]*BlockTimeInfo, error) {
+func (d *Datasource) GetBlocksInfo(ctx context.Context, start, end time.Time) ([]*BlockInfo, error) {
 	// get head first
 	h, err := d.Client.GetBlockHeader(ctx, "head")
 	if err != nil {
@@ -58,15 +58,15 @@ func (d *Datasource) GetBlockTimes(ctx context.Context, start, end time.Time) ([
 	nextBlock := h.Hash
 
 	var (
-		blocks    []*BlockTimeInfo
-		prevBlock *BlockTimeInfo
+		blocks    []*BlockInfo
+		prevBlock *BlockInfo
 	)
 	for {
 		i, err := d.getBlockInfo(ctx, nextBlock)
 		if err != nil {
 			return nil, err
 		}
-		info := &BlockTimeInfo{
+		info := &BlockInfo{
 			BlockInfo: i,
 		}
 
@@ -90,9 +90,61 @@ func (d *Datasource) GetBlockTimes(ctx context.Context, start, end time.Time) ([
 	}
 
 	// reverse
-	res := make([]*BlockTimeInfo, len(blocks))
+	res := make([]*BlockInfo, len(blocks))
 	for i, b := range blocks {
 		res[len(blocks)-i-1] = b
 	}
 	return res, nil
+}
+
+func (d *Datasource) MonitorBlockInfo(ctx context.Context) (blockInfo <-chan *BlockInfo, errors <-chan error, err error) {
+	var cancelFunc context.CancelFunc
+	ctx, cancelFunc = context.WithCancel(ctx)
+	headerCh, clientErrCh, err := d.Client.GetMonitorHeads(ctx)
+	if err != nil {
+		cancelFunc()
+		return nil, nil, err
+	}
+	blockinfoCh := make(chan *BlockInfo, 100)
+	errorsCh := make(chan error, 1)
+	go (func() {
+		defer (func() {
+			close(blockinfoCh)
+			close(errorsCh)
+			cancelFunc()
+		})()
+
+		var err error
+	headerLoop:
+		for h := range headerCh {
+			var bi, pred *model.BlockInfo
+			if bi, err = d.getBlockInfo(ctx, h.Hash); err != nil {
+				break
+			}
+			if pred, err = d.getBlockInfo(ctx, h.Predecessor); err != nil {
+				break
+			}
+
+			blockinfo := &BlockInfo{
+				BlockInfo:            bi,
+				PredecessorTimestamp: pred.Header.Timestamp,
+				Delay:                bi.Header.Timestamp.Sub(pred.Header.Timestamp),
+				MinDelay:             bi.MinValidTime.Sub(pred.Header.Timestamp),
+			}
+
+			select {
+			case blockinfoCh <- blockinfo:
+			case <-ctx.Done():
+				err = ctx.Err()
+				break headerLoop
+			}
+		}
+
+		if err != nil {
+			errorsCh <- err
+		} else if err, ok := <-clientErrCh; ok {
+			errorsCh <- err
+		}
+	})()
+	return blockinfoCh, errorsCh, nil
 }

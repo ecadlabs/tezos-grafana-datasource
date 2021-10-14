@@ -202,7 +202,7 @@ func (c *Client) NewGetMonitorHeadsRequest(ctx context.Context) (*http.Request, 
 	return http.NewRequestWithContext(ctx, "GET", u, nil)
 }
 
-func (c *Client) GetMonitorHeads(ctx context.Context) (header <-chan *model.ShellBlockHeader, errors <-chan error, err error) {
+func (c *Client) GetMonitorHeads(ctx context.Context) (headerCh <-chan *model.ShellBlockHeader, errorsCh <-chan error, err error) {
 	req, err := c.NewGetMonitorHeadsRequest(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("getMonitorHeads: %w", err)
@@ -211,22 +211,34 @@ func (c *Client) GetMonitorHeads(ctx context.Context) (header <-chan *model.Shel
 	if err != nil {
 		return nil, nil, fmt.Errorf("getMonitorHeads: %w", err)
 	}
-	headerCh := make(chan *model.ShellBlockHeader, 100)
-	errorsCh := make(chan error, 1)
+
+	hdrCh := make(chan *model.ShellBlockHeader, 100)
+	errCh := make(chan error, 1)
+
 	go func() {
-		defer res.Close()
-		defer close(headerCh)
-		defer close(errorsCh)
+		defer (func() {
+			res.Close()
+			close(hdrCh)
+			close(errCh)
+		})()
+
 		dec := json.NewDecoder(res)
 		dec.DisallowUnknownFields()
 		for {
 			var v model.ShellBlockHeader
 			if err := dec.Decode(&v); err != nil {
-				errorsCh <- err
+				if err != io.EOF {
+					errCh <- err
+				}
 				return
 			}
-			headerCh <- &v
+			select {
+			case hdrCh <- &v:
+			case <-ctx.Done():
+				errCh <- ctx.Err()
+				return
+			}
 		}
 	}()
-	return headerCh, errorsCh, nil
+	return hdrCh, errCh, nil
 }
