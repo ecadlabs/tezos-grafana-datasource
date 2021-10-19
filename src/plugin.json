@@ -22,11 +22,11 @@
     "links": [
       {
         "name": "Website",
-        "url": "https://github.com/grafana/grafana-starter-datasource-backend"
+        "url": "https://github.com/ecadlabs/tezos-grafana-datasource"
       },
       {
         "name": "License",
-        "url": "https://github.com/grafana/grafana-starter-datasource-backend/blob/master/LICENSE"
+        "url": "https://github.com/ecadlabs/tezos-grafana-datasource/blob/master/LICENSE"
       }
     ],
     "screenshots": [],

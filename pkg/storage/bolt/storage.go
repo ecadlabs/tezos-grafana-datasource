@@ -40,14 +40,16 @@ func (b *BoltStorage) UpdateBlockInfo(ctx context.Context, info *model.BlockInfo
 	})
 }
 
-const dbFile = ".tezos-grafana-datasource/block_cache.db"
+const defaultDBFile = ".tezos-grafana-datasource/block_cache.db"
 
-func NewBoltStorage() (*BoltStorage, error) {
-	name := filepath.Join(os.Getenv("HOME"), dbFile)
-	if err := os.MkdirAll(filepath.Dir(name), 0777); err != nil {
+func NewBoltStorage(path string) (*BoltStorage, error) {
+	if path == "" {
+		path = filepath.Join(os.Getenv("HOME"), defaultDBFile)
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0777); err != nil {
 		return nil, err
 	}
-	db, err := Open(name, 0666, nil, nil)
+	db, err := Open(path, 0666, nil, nil)
 	if err != nil {
 		return nil, err
 	}

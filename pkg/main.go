@@ -11,10 +11,12 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 )
 
+const dbFile = "/var/lib/grafana/tezos-grafana-datasource/block_cache.db"
+
 func main() {
 	log.DefaultLogger.Debug("Running Tezos datasource")
 
-	storage, err := bolt.NewBoltStorage()
+	storage, err := bolt.NewBoltStorage(dbFile)
 	if err != nil {
 		log.DefaultLogger.Error(err.Error())
 		os.Exit(1)

@@ -81,7 +81,8 @@ func (d *TezosDatasource) doQuery(ctx context.Context, ds *datasource.Datasource
 	for i, bi := range blockInfo {
 		timestamps[i] = bi.Header.Timestamp
 	}
-	frame := data.NewFrame("Block Info", data.NewField("time", nil, timestamps))
+
+	frame := data.NewFrame("Block", data.NewField("time", nil, timestamps))
 
 	validFields := make([]string, 0, len(q.Fields))
 	(func() {
@@ -155,7 +156,7 @@ func (d *TezosDatasource) RunStream(ctx context.Context, req *backend.RunStreamR
 		return err
 	}
 	for bi := range blockinfoCh {
-		frame := data.NewFrame("Block Info", data.NewField("time", nil, []time.Time{bi.Header.Timestamp}))
+		frame := data.NewFrame("Block", data.NewField("time", nil, []time.Time{bi.Header.Timestamp}))
 		for _, field := range fields {
 			values := pickFieldByName([]*datasource.BlockInfo{bi}, field)
 			if values != nil {

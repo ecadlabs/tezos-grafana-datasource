@@ -1,5 +1,5 @@
 {
-  "name": "ecad-labs-tezos-datasource",
+  "name": "tezos-grafana-datasource",
   "version": "1.0.0",
   "description": "Tezos Datasource Plugin",
   "scripts": {
@@ -11,7 +11,7 @@
     "start": "yarn watch"
   },
   "author": "ECAD Labs",
-  "license": "Apache-2.0",
+  "license": "MIT",
   "devDependencies": {
     "@grafana/data": "latest",
     "@grafana/toolkit": "latest",

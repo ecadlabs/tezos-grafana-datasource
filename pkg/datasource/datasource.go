@@ -16,9 +16,9 @@ type Datasource struct {
 
 type BlockInfo struct {
 	*model.BlockInfo
-	PredecessorTimestamp time.Time     `json:"predecessor_timestamp"`
-	MinDelay             time.Duration `json:"minimal_delay"`
-	Delay                time.Duration `json:"delay"`
+	PredecessorTimestamp time.Time `json:"predecessor_timestamp"`
+	MinDelay             int64     `json:"minimal_delay"`
+	Delay                int64     `json:"delay"`
 }
 
 func (d *Datasource) getBlockInfo(ctx context.Context, blockID model.Base58) (*model.BlockInfo, error) {
@@ -72,8 +72,8 @@ func (d *Datasource) GetBlocksInfo(ctx context.Context, start, end time.Time) ([
 
 		if prevBlock != nil {
 			prevBlock.PredecessorTimestamp = info.Header.Timestamp
-			prevBlock.Delay = prevBlock.Header.Timestamp.Sub(info.Header.Timestamp)
-			prevBlock.MinDelay = prevBlock.MinValidTime.Sub(info.Header.Timestamp)
+			prevBlock.Delay = int64(prevBlock.Header.Timestamp.Sub(info.Header.Timestamp))
+			prevBlock.MinDelay = int64(prevBlock.MinValidTime.Sub(info.Header.Timestamp))
 		}
 
 		if info.Header.Timestamp.Before(start) {
@@ -128,8 +128,8 @@ func (d *Datasource) MonitorBlockInfo(ctx context.Context) (blockInfo <-chan *Bl
 			blockinfo := &BlockInfo{
 				BlockInfo:            bi,
 				PredecessorTimestamp: pred.Header.Timestamp,
-				Delay:                bi.Header.Timestamp.Sub(pred.Header.Timestamp),
-				MinDelay:             bi.MinValidTime.Sub(pred.Header.Timestamp),
+				Delay:                int64(bi.Header.Timestamp.Sub(pred.Header.Timestamp)),
+				MinDelay:             int64(bi.MinValidTime.Sub(pred.Header.Timestamp)),
 			}
 
 			select {
