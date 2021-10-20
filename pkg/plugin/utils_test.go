@@ -1,35 +1,66 @@
 package plugin
 
 import (
+	"reflect"
 	"testing"
+	"time"
 
-	"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
 )
 
-type T struct {
-	Field0 string
-	*TT
+type Struct0 struct {
+	Field0 string    `json:"field0"`
+	Field1 time.Time `json:"field1"`
+	Field2 *Struct1  `json:"field2"`
+	*EmbeddedStruct
 }
 
-type TT struct {
-	Field1 string `json:"field1"`
+type Struct1 struct {
+	Field0 int64 `json:"field0"`
 }
 
-func TestPickFieldByName(t *testing.T) {
-	values := []*T{
+type EmbeddedStruct struct {
+	Field3 int64 `json:"field3"`
+}
+
+func TestFieldSelectors(t *testing.T) {
+	f := getStructFields(&Struct0{})
+	assert.Equal(t, []*structField{
 		{
-			Field0: "f00",
-			TT: &TT{
-				Field1: "f10",
-			},
+			Selector: []string{"field0"},
+			Type:     reflect.TypeOf(""),
 		},
 		{
-			Field0: "f01",
-			TT: &TT{
-				Field1: "f11",
+			Selector: []string{"field1"},
+			Type:     reflect.TypeOf(time.Time{}),
+		},
+		{
+			Selector: []string{"field2", "field0"},
+			Type:     reflect.TypeOf(int64(0)),
+		},
+		{
+			Selector: []string{"field3"},
+			Type:     reflect.TypeOf(int64(0)),
+		},
+	}, f)
+}
+
+/*
+func TestCUE(t *testing.T) {
+	bs := blockScope{
+		Block: &datasource.BlockInfo{
+			BlockInfo: &model.BlockInfo{
+				Header: &model.BlockHeader{},
 			},
+			MinDelay: 10,
+			Delay:    10,
 		},
 	}
-	require.Equal(t, []string{"f00", "f01"}, pickFieldByName(values, "Field0"))
-	require.Equal(t, []string{"f10", "f11"}, pickFieldByName(values, "field1"))
+
+	ctx := cuecontext.New()
+	scope := ctx.Encode(&bs)
+	val := ctx.CompileString(`{timestamp:block.header.timestamp,level:block.level}`, cue.Scope(scope))
+	t.Log(val)
+	assert.NoError(t, val.Err())
 }
+*/

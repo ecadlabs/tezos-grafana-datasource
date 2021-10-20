@@ -2,12 +2,14 @@ package plugin
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
+	"cuelang.org/go/cue"
+	"cuelang.org/go/cue/cuecontext"
 	"github.com/ecadlabs/tezos-grafana-datasource/pkg/client"
 	"github.com/ecadlabs/tezos-grafana-datasource/pkg/datasource"
 	"github.com/ecadlabs/tezos-grafana-datasource/pkg/storage/bolt"
@@ -16,6 +18,11 @@ import (
 	"github.com/grafana/grafana-plugin-sdk-go/backend/log"
 	"github.com/grafana/grafana-plugin-sdk-go/data"
 	"github.com/grafana/grafana-plugin-sdk-go/live"
+)
+
+const (
+	queryBlockInfo       = "block_info"
+	queryBlockInfoFields = "block_info_fields"
 )
 
 type TezosDatasource struct {
@@ -51,7 +58,7 @@ func (d *TezosDatasource) QueryData(ctx context.Context, req *backend.QueryDataR
 	}
 	response := backend.NewQueryDataResponse()
 	for _, q := range req.Queries {
-		res := d.doQuery(ctx, ds, req.PluginContext, q)
+		res := d.doQuery(ctx, ds, req.PluginContext, &q)
 		response.Responses[q.RefID] = res
 	}
 	return response, nil
@@ -60,61 +67,162 @@ func (d *TezosDatasource) QueryData(ctx context.Context, req *backend.QueryDataR
 type queryModel struct {
 	Streaming bool     `json:"streaming"`
 	Fields    []string `json:"fields"`
+	Expr      string   `json:"expr"`
+	UseExpr   bool     `json:"useExpr"`
 }
 
-func (d *TezosDatasource) doQuery(ctx context.Context, ds *datasource.Datasource, pCtx backend.PluginContext, query backend.DataQuery) backend.DataResponse {
+func (q *queryModel) Expression() string {
+	if q.UseExpr {
+		return q.Expr
+	}
+	fields := append([]string{"header.timestamp"}, q.Fields...)
+	var expr strings.Builder
+	expr.WriteByte('{')
+	for i, f := range fields {
+		if i != 0 {
+			expr.WriteByte(',')
+		}
+		tmp := strings.Split(f, ".")
+		expr.WriteString(tmp[len(tmp)-1])
+		expr.WriteByte(':')
+		expr.WriteString("block.")
+		expr.WriteString(f)
+	}
+	expr.WriteByte('}')
+	return expr.String()
+}
+
+type blockScope struct {
+	Block *datasource.BlockInfo `json:"block"`
+}
+
+func makeFrame(info []*datasource.BlockInfo, expr string) (*data.Frame, error) {
+	var fields []fieldConverter
+	fieldIdx := make(map[string]int)
+	ctx := cuecontext.New()
+
+	for i, bi := range info {
+		scope := blockScope{
+			Block: bi,
+		}
+		val := ctx.CompileString(expr, cue.Scope(ctx.Encode(&scope)))
+		if val.Err() != nil {
+			return nil, val.Err()
+		}
+
+		if val.Kind() == cue.StructKind {
+			f, err := val.Fields(cue.All())
+			if err != nil {
+				return nil, err
+			}
+			for f.Next() {
+				if f.Value().Err() != nil {
+					return nil, f.Value().Err()
+				}
+				name := f.Selector().String()
+				if fi, ok := fieldIdx[name]; !ok {
+					if converter, err := newFieldConverter(name, f.Value(), len(info)); err != nil {
+						return nil, err
+					} else {
+						fieldIdx[name] = len(fields)
+						fields = append(fields, converter)
+						if err := converter.Set(i, f.Value()); err != nil {
+							return nil, err
+						}
+					}
+				} else if err := fields[fi].Set(i, f.Value()); err != nil {
+					return nil, err
+				}
+			}
+		} else if val.Kind() == cue.ListKind {
+			v, err := val.List()
+			if err != nil {
+				return nil, err
+			}
+			var ii int
+			for v.Next() && ii <= len(fields) {
+				if v.Value().Err() != nil {
+					return nil, v.Value().Err()
+				}
+
+				if ii == len(fields) {
+					if converter, err := newFieldConverter("", v.Value(), len(info)); err != nil {
+						return nil, err
+					} else {
+						fields = append(fields, converter)
+						if err := converter.Set(i, v.Value()); err != nil {
+							return nil, err
+						}
+					}
+				} else if err := fields[ii].Set(i, v.Value()); err != nil {
+					return nil, err
+				}
+				ii++
+			}
+		} else {
+			return nil, fmt.Errorf("list or struct type expected: %v", val.Kind())
+		}
+	}
+	frame := data.NewFrame("")
+	for _, f := range fields {
+		frame.Fields = append(frame.Fields, f.Field())
+	}
+	return frame, nil
+}
+
+func (d *TezosDatasource) doQuery(ctx context.Context, ds *datasource.Datasource, pCtx backend.PluginContext, query *backend.DataQuery) backend.DataResponse {
+	queryType := query.QueryType
+	if queryType == "" {
+		queryType = queryBlockInfo
+	}
 	response := backend.DataResponse{}
 	var q queryModel
 
-	response.Error = json.Unmarshal(query.JSON, &q)
-	if response.Error != nil {
+	if response.Error = json.Unmarshal(query.JSON, &q); response.Error != nil {
 		return response
 	}
 
-	var blockInfo []*datasource.BlockInfo
-	blockInfo, response.Error = ds.GetBlocksInfo(ctx, query.TimeRange.From, query.TimeRange.To)
-	if response.Error != nil {
-		return response
-	}
-
-	timestamps := make([]time.Time, len(blockInfo))
-	for i, bi := range blockInfo {
-		timestamps[i] = bi.Header.Timestamp
-	}
-
-	frame := data.NewFrame("Block", data.NewField("time", nil, timestamps))
-
-	validFields := make([]string, 0, len(q.Fields))
-	(func() {
-		// NewField may panic if data type is not supported because types were expected to be hard coded. Return panic value it as an error instead
-		defer (func() {
-			if r := recover(); r != nil {
-				response.Error = fmt.Errorf("%w", r)
-			}
-		})()
-		for _, field := range q.Fields {
-			values := pickFieldByName(blockInfo, field)
-			if values != nil {
-				validFields = append(validFields, field)
-				frame.Fields = append(frame.Fields, data.NewField(field, nil, values))
-			}
+	switch queryType {
+	case queryBlockInfo:
+		var blockInfo []*datasource.BlockInfo
+		if blockInfo, response.Error = ds.GetBlocksInfo(ctx, query.TimeRange.From, query.TimeRange.To); response.Error != nil {
+			return response
 		}
-	})()
-	if response.Error != nil {
+
+		expr := q.Expression()
+		var frame *data.Frame
+		if frame, response.Error = makeFrame(blockInfo, expr); response.Error != nil {
+			return response
+		}
+
+		if q.Streaming {
+			channel := live.Channel{
+				Scope:     live.ScopeDatasource,
+				Namespace: pCtx.DataSourceInstanceSettings.UID,
+				Path:      base64.RawStdEncoding.EncodeToString([]byte(expr)),
+			}
+			frame.SetMeta(&data.FrameMeta{Channel: channel.String()})
+		}
+
+		response.Frames = append(response.Frames, frame)
+		return response
+
+	case queryBlockInfoFields:
+		fields := getStructFields((*datasource.BlockInfo)(nil))
+		selectors := make([]string, len(fields))
+		types := make([]string, len(fields))
+		for i, f := range fields {
+			selectors[i] = strings.Join(f.Selector, ".")
+			types[i] = f.Type.Name()
+		}
+		frame := data.NewFrame("", data.NewField("selector", nil, selectors), data.NewField("type", nil, types))
+		response.Frames = append(response.Frames, frame)
+		return response
+
+	default:
+		response.Error = fmt.Errorf("unknown query type: %v", queryType)
 		return response
 	}
-
-	if q.Streaming {
-		channel := live.Channel{
-			Scope:     live.ScopeDatasource,
-			Namespace: pCtx.DataSourceInstanceSettings.UID,
-			Path:      strings.Join(validFields, ","),
-		}
-		frame.SetMeta(&data.FrameMeta{Channel: channel.String()})
-	}
-
-	response.Frames = append(response.Frames, frame)
-	return response
 }
 
 func (d *TezosDatasource) CheckHealth(ctx context.Context, req *backend.CheckHealthRequest) (*backend.CheckHealthResult, error) {
@@ -149,22 +257,21 @@ func (d *TezosDatasource) RunStream(ctx context.Context, req *backend.RunStreamR
 		return err
 	}
 
-	fields := strings.Split(req.Path, ",")
+	expr, err := base64.RawStdEncoding.DecodeString(req.Path)
+	if err != nil {
+		return err
+	}
 
 	blockinfoCh, errCh, err := ds.MonitorBlockInfo(ctx)
 	if err != nil {
 		return err
 	}
 	for bi := range blockinfoCh {
-		frame := data.NewFrame("Block", data.NewField("time", nil, []time.Time{bi.Header.Timestamp}))
-		for _, field := range fields {
-			values := pickFieldByName([]*datasource.BlockInfo{bi}, field)
-			if values != nil {
-				frame.Fields = append(frame.Fields, data.NewField(field, nil, values))
-			}
-		}
-		err := sender.SendFrame(frame, data.IncludeAll)
+		frame, err := makeFrame([]*datasource.BlockInfo{bi}, string(expr))
 		if err != nil {
+			return err
+		}
+		if err = sender.SendFrame(frame, data.IncludeAll); err != nil {
 			log.DefaultLogger.Error("Error sending frame", "error", err)
 			continue
 		}
@@ -172,6 +279,7 @@ func (d *TezosDatasource) RunStream(ctx context.Context, req *backend.RunStreamR
 	if err, ok := <-errCh; ok && !errors.Is(err, context.Canceled) {
 		return err
 	}
+	log.DefaultLogger.Info("Stream stopped")
 	return nil
 }
 

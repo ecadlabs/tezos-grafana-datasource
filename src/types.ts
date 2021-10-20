@@ -1,14 +1,20 @@
 import { DataQuery, DataSourceJsonData } from '@grafana/data';
 
-export const defaultQuery: Partial<Query> = {
-  fields: [],
-};
-
 export interface Query extends DataQuery {
+  queryType?: QueryType;
   streaming?: boolean;
-  fields: string[];
+  fields?: string[];
+  expr?: string;
+  useExpr?: boolean;
 }
 
 export interface DataSourceOptions extends DataSourceJsonData {
   chain?: string;
 }
+
+export interface FieldType {
+  selector: string;
+  type: string;
+}
+
+export type QueryType = 'block_info' | 'block_info_fields';

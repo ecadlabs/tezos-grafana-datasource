@@ -1,50 +1,68 @@
 package plugin
 
 import (
-	"fmt"
+	"encoding"
+	"encoding/json"
+	"math/big"
 	"reflect"
 	"strings"
+	"time"
 )
 
-func getStructField(t reflect.Type, fieldName string) *reflect.StructField {
+type structField struct {
+	Selector []string
+	Type     reflect.Type
+}
+
+var (
+	timeType      = reflect.TypeOf(time.Time{})
+	bigIntType    = reflect.TypeOf((*big.Int)(nil)).Elem()
+	bigFloatType  = reflect.TypeOf((*big.Float)(nil)).Elem()
+	bigRatType    = reflect.TypeOf((*big.Rat)(nil)).Elem()
+	textMarshaler = reflect.TypeOf((*encoding.TextMarshaler)(nil)).Elem()
+	jsonMarshaler = reflect.TypeOf((*json.Marshaler)(nil)).Elem()
+)
+
+// collect fields with corresponding selectors which are convertable to CUE types and then to Grafana types
+func getStructTypeFields(t reflect.Type) (fields []*structField) {
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}
-	for _, f := range reflect.VisibleFields(t) {
-		if !f.IsExported() {
+	fields = make([]*structField, 0, t.NumField())
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if !field.IsExported() {
 			continue
 		}
-		name := f.Name
-		if jn := strings.Split(f.Tag.Get("json"), ",")[0]; jn != "" {
+		ft := field.Type
+		if ft.Kind() == reflect.Ptr {
+			ft = ft.Elem()
+		}
+		name := field.Name
+		if jn := strings.Split(field.Tag.Get("json"), ",")[0]; jn != "" {
 			name = jn
 		}
-		if name == fieldName {
-			return &f
+		if k := ft.Kind(); k >= reflect.Bool && k <= reflect.Float64 || k == reflect.String ||
+			ft == timeType || ft == bigIntType || ft == bigFloatType || ft == bigRatType ||
+			ft.Implements(jsonMarshaler) || ft.Implements(textMarshaler) {
+			fields = append(fields, &structField{Selector: []string{name}, Type: ft})
+		} else if ft.Kind() == reflect.Struct {
+			nestedFields := getStructTypeFields(ft)
+			if field.Anonymous {
+				fields = append(fields, nestedFields...)
+			} else {
+				for _, f := range nestedFields {
+					fields = append(fields, &structField{
+						Type:     f.Type,
+						Selector: append([]string{name}, f.Selector...),
+					})
+				}
+			}
 		}
 	}
-	return nil
+	return
 }
 
-func pickFieldByName(src interface{}, fieldName string) interface{} {
-	val := reflect.Indirect(reflect.ValueOf(src))
-	if val.Kind() != reflect.Slice {
-		panic(fmt.Sprintf("slice expected: %v", val.Type()))
-	}
-	elem := val.Type().Elem()
-	if elem.Kind() == reflect.Ptr {
-		elem = elem.Elem()
-	}
-	if elem.Kind() != reflect.Struct {
-		panic(fmt.Sprintf("slice of struct expected: %v", val.Type()))
-	}
-	field := getStructField(elem, fieldName)
-	if field == nil {
-		return nil
-	}
-	res := reflect.MakeSlice(reflect.SliceOf(field.Type), val.Len(), val.Len())
-	for i := 0; i < val.Len(); i++ {
-		v := reflect.Indirect(val.Index(i))
-		res.Index(i).Set(v.FieldByIndex(field.Index))
-	}
-	return res.Interface()
+func getStructFields(v interface{}) (fields []*structField) {
+	return getStructTypeFields(reflect.TypeOf(v))
 }
