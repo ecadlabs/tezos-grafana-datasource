@@ -3,13 +3,13 @@ module github.com/ecadlabs/tezos-grafana-datasource
 go 1.17
 
 require (
+	cuelang.org/go v0.4.0
 	github.com/grafana/grafana-plugin-sdk-go v0.114.0
 	github.com/stretchr/testify v1.7.0
 	go.etcd.io/bbolt v1.3.6
 )
 
 require (
-	cuelang.org/go v0.4.0 // indirect
 	github.com/apache/arrow/go/arrow v0.0.0-20210223225224-5bea62493d91 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.1.1 // indirect
