@@ -75,7 +75,10 @@ func (q *queryModel) Expression() string {
 	if q.UseExpr {
 		return q.Expr
 	}
-	fields := append([]string{"header.timestamp"}, q.Fields...)
+	fields := q.Fields
+	if len(q.Fields) == 0 {
+		fields = []string{"header.timestamp"}
+	}
 	var expr strings.Builder
 	expr.WriteByte('{')
 	for i, f := range fields {

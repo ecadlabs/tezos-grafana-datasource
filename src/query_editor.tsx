@@ -36,7 +36,9 @@ export class QueryEditor extends PureComponent<Props> {
 
   render() {
     const { query } = this.props;
-    query.fields = query.fields || [];
+    if (query.fields === undefined) {
+      query.fields = ['header.timestamp'];
+    }
 
     const fieldsVal = (v: string[]) => v.map<SelectableValue<string>>((v) => ({ label: v, value: v }));
 
