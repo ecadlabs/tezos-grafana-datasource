@@ -1,5 +1,14 @@
 name: Build Tezos Grafana plugin
-on: [push]
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  release:
+    types:
+      - published
 
 jobs:
   build:
@@ -32,7 +41,7 @@ jobs:
       - uses: actions/upload-artifact@v2
         if: success()
         with:
-          name: ${PLUGIN_ID}-${PLUGIN_VERSION}.zip
+          name: package.zip
           path: ./packages
 
   release:
