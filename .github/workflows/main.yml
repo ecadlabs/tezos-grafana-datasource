@@ -41,7 +41,7 @@ jobs:
       - uses: actions/upload-artifact@v2
         if: success()
         with:
-          name: package.zip
+          name: package
           path: ./packages
 
   release:
