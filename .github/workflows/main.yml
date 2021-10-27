@@ -21,6 +21,8 @@ jobs:
         with: { node-version: "16.x" }
       - uses: actions/checkout@v2
       - run: npm ci
+      - name: install Yarn
+        run: npm install -g yarn
       - name: Build plugin backend
         uses: magefile/mage-action@v1
         with:
@@ -30,6 +32,9 @@ jobs:
         run: |
           yarn install
           yarn build
+      - name: uninstall Yarn
+        if: always()
+        run: npm uninstall -g yarn
       - name: Package plugin
         run: |
           PLUGIN_ID="$(cat ./dist/plugin.json|jq '.id'| sed s/\"//g)"
