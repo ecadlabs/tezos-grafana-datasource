@@ -17,13 +17,13 @@ jobs:
     steps:
       - uses: actions/setup-go@v2
         with: { go-version: "^1.17.2" }
-      - uses: actions/setup-node@v1
+      - uses: actions/setup-node@v2
         with: { node-version: "16.x" }
       - uses: actions/checkout@v2
       - run: npm ci
 
-      - name: install Yarn
-        run: npm install -g yarn
+      # - name: install Yarn
+      #   run: npm install -g yarn
 
       - name: Build plugin backend
         uses: magefile/mage-action@v1
@@ -36,9 +36,10 @@ jobs:
           yarn install
           yarn build
 
-      - name: uninstall Yarn
-        if: always()
-        run: npm uninstall -g yarn
+      # - name: uninstall Yarn
+      #   if: always()
+      #   run: npm uninstall -g yarn
+
       - name: Package plugin
         run: |
           PLUGIN_ID="$(cat ./dist/plugin.json|jq '.id'| sed s/\"//g)"
@@ -87,4 +88,3 @@ jobs:
           asset_path: ${{ steps.package_name.outputs.path }}
           asset_name: ${{ steps.package_name.outputs.name }}
           asset_content_type: application/zip
-          
