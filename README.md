@@ -61,6 +61,17 @@ A data source backend plugin consists of both frontend and backend components.
    mage -l
    ```
 
+## Quickstart with docker:
+
+```
+docker run --it \
+      -p 3000:3000 \
+      --name=grafana \
+      -e "GF_INSTALL_PLUGINS=https://github.com/ecadlabs/tezos-grafana-datasource/releases/download/v0.0.1/ecad-labs-tezos-datasource-0.0.1.zip;tezos-grafana-datasource" \
+      -e "GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=akips-datasource" \
+      grafana/grafana:7.2.2
+```
+
 ## Learn more
 
 - [Build a data source backend plugin tutorial](https://grafana.com/tutorials/build-a-data-source-backend-plugin)
