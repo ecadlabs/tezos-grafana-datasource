@@ -67,8 +67,8 @@ A data source backend plugin consists of both frontend and backend components.
 docker run --it \
       -p 3000:3000 \
       --name=grafana \
-      -e "GF_INSTALL_PLUGINS=https://github.com/ecadlabs/tezos-grafana-datasource/releases/download/v0.0.1/ecad-labs-tezos-datasource-0.0.1.zip;tezos-grafana-datasource" \
-      -e "GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=akips-datasource" \
+      -e "GF_INSTALL_PLUGINS=https://github.com/ecadlabs/tezos-grafana-datasource/releases/download/v0.0.1/ecad-labs-tezos-datasource-0.0.1.zip;ecad-labs-tezos-datasource" \
+      -e "GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ecad-labs-tezos-datasource" \
       grafana/grafana:7.2.2
 ```
 
