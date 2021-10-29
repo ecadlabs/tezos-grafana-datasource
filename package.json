@@ -1,6 +1,6 @@
 {
   "name": "tezos-grafana-datasource",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Tezos Datasource Plugin",
   "scripts": {
     "build": "grafana-toolkit plugin:build",
