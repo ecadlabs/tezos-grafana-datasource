@@ -1,67 +1,16 @@
-# Grafana Data Source Backend Plugin Template
+# Tezos Grafana Data Source Backend Plugin
 
 [![Build](https://github.com/grafana/grafana-starter-datasource-backend/workflows/CI/badge.svg)](https://github.com/grafana/grafana-datasource-backend/actions?query=workflow%3A%22CI%22)
 
-This template is a starting point for building Grafana Data Source Backend Plugins
+## What is Tezos Grafana Data Source Backend Plugin?
 
-## What is Grafana Data Source Backend Plugin?
-
-Grafana supports a wide range of data sources, including Prometheus, MySQL, and even Datadog. There’s a good chance you can already visualize metrics from the systems you have set up. In some cases, though, you already have an in-house metrics solution that you’d like to add to your Grafana dashboards. Grafana Data Source Plugins enables integrating such solutions with Grafana.
-
-For more information about backend plugins, refer to the documentation on [Backend plugins](https://grafana.com/docs/grafana/latest/developers/plugins/backend/).
+This plugin allows users to present data from the Tezos chain using only a Tezos node. It does not depend on any external indexers. The plugin allows users to write expressions using the [Cuelang][cuelang] language.
 
 ## Getting started
 
-A data source backend plugin consists of both frontend and backend components.
+__Prerequiste: a functioning docker installation, and a Tezos RPC node__
 
-### Frontend
-
-1. Install dependencies
-
-   ```bash
-   yarn install
-   ```
-
-2. Build plugin in development mode or run in watch mode
-
-   ```bash
-   yarn dev
-   ```
-
-   or
-
-   ```bash
-   yarn watch
-   ```
-
-3. Build plugin in production mode
-
-   ```bash
-   yarn build
-   ```
-
-### Backend
-
-1. Update [Grafana plugin SDK for Go](https://grafana.com/docs/grafana/latest/developers/plugins/backend/grafana-plugin-sdk-for-go/) dependency to the latest minor version:
-
-   ```bash
-   go get -u github.com/grafana/grafana-plugin-sdk-go
-   go mod tidy
-   ```
-
-2. Build backend plugin binaries for Linux, Windows and Darwin:
-
-   ```bash
-   mage -v
-   ```
-
-3. List all available Mage targets for additional commands:
-
-   ```bash
-   mage -l
-   ```
-
-## Quickstart with docker:
+The fastest way to install and run the plugin is to use the official Grafana docker image as follows:
 
 ```
 docker run --it \
@@ -72,10 +21,65 @@ docker run --it \
       grafana/grafana:latest
 ```
 
-## Learn more
 
-- [Build a data source backend plugin tutorial](https://grafana.com/tutorials/build-a-data-source-backend-plugin)
-- [Grafana documentation](https://grafana.com/docs/)
-- [Grafana Tutorials](https://grafana.com/tutorials/) - Grafana Tutorials are step-by-step guides that help you make the most of Grafana
-- [Grafana UI Library](https://developers.grafana.com/ui) - UI components to help you build interfaces using Grafana Design System
-- [Grafana plugin SDK for Go](https://grafana.com/docs/grafana/latest/developers/plugins/backend/grafana-plugin-sdk-for-go/)
+### Configuring your first Tezos plugin datasource
+
+1. Navigate to http://localhost:3000/ and login to your Grafana instance using username: `admin` and password: `admin`.
+2. In the Grafana web interface, go "Configuration" -> "Data Sources"
+3. Click the "Add data source" button
+4. Either enter "tezos" in the search bar, or scroll to the bottom of the list
+5. When hovering your cursor over the "tezos-datasource" plugin entry, click the "Select" button.
+6. Name the Data Source entry appropriatley. Example "tezos-datasource mainnet" is sensible if you are using a mainnet node
+8. Enter the http URL of the RPC node you want to use. 
+9. Specify `main` in the "Chain" input box.
+10. Click "Save & Test"
+
+### Importing the example Dashboard as a starting point
+
+1. In Grafana, click "Import" From the "Create" menu (shows as a + symbol when the left menu is collapsed).
+2. In the "Import via grafana.com" text field type the number `15174` or the full URL `https://grafana.com/grafana/dashboards/15174`, click "Load".
+3. On the next screen, select the data-source you created in the previous step.
+4. Click "Import"
+5. You should have a new dashboard.
+
+## Query expressions
+
+The plugin uses [Cuelang][cuelang] for its query syntax.
+
+Queries should appear between square brackets `[...]`, and ther first element is typically a time value.
+
+Example queries are:
+
+### Number of endorsements per block over time
+
+`[block.header.timestamp, block.statistics.n_ops.endorsement]`
+
+### Number of operations per block over time
+
+`[block.header.timestamp, block.statistics.n_ops_total]`
+
+### Block delay over time
+
+`[block.header.timestamp, block.delay / block.minimal_delay]`
+
+Multiple items can be added to a single query. The following example shows 
+
+```
+[
+ block.header.timestamp, 
+ block.statistics.n_ops.endorsement,
+ block.statistics.n_ops.reveal,
+ block.statistics.n_ops.transaction,
+ block.statistics.n_ops.origination,
+ block.statistics.n_ops.delegation
+]
+```
+
+
+## Limitations
+
+The Tezos Grafana Plugin must query blocks from the node. It caches data as it goes, but the plugin will take a long time for longer time spans as querying many blocks from a Tezos node is a slow process. Narrow your time range to smaller units for best results, such as 15 minutes or 3 hours.
+
+--
+
+[cuelang]: https://cuelang.org/
