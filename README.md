@@ -16,7 +16,7 @@ The fastest way to install and run the plugin is to use the official Grafana doc
 docker run -it \
       -p 3000:3000 \
       --name=tezos-grafana \
-      -e "GF_INSTALL_PLUGINS=$(curl -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/ecadlabs/tezos-grafana-datasource/releases | jq -r '.[0].assets[0].browser_download_url');ecad-labs-tezos-datasource" \
+      -e "GF_INSTALL_PLUGINS=$(curl -H "Accept: application/vnd.github.v3+json" https://api.github.com/repos/ecadlabs/tezos-grafana-datasource/releases | jq -r '[.[] | select(.draft == false and .prerelease == false)][0].assets[0].browser_download_url');ecad-labs-tezos-datasource" \
       -e "GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=ecad-labs-tezos-datasource" \
       grafana/grafana:latest
 ```
