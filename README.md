@@ -8,7 +8,7 @@ This plugin allows users to present data from the Tezos chain using only a Tezos
 
 ## Getting started
 
-__Prerequiste: a functioning docker installation, and a Tezos RPC node__
+__Prerequiste: a functioning docker installation, the jq command line tool, and a Tezos RPC node__
 
 The fastest way to install and run the plugin is to use the official Grafana docker image as follows:
 
