@@ -65,36 +65,9 @@ func (d *TezosDatasource) QueryData(ctx context.Context, req *backend.QueryDataR
 }
 
 type queryModel struct {
-	Streaming bool     `json:"streaming"`
-	Fields    []string `json:"fields"`
-	Expr      string   `json:"expr"`
-	UseExpr   bool     `json:"useExpr"`
+	Streaming bool   `json:"streaming"`
+	Expr      string `json:"expr"`
 }
-
-func (q *queryModel) Expression() string {
-	if q.UseExpr {
-		return q.Expr
-	}
-	fields := q.Fields
-	if len(q.Fields) == 0 {
-		fields = []string{"header.timestamp"}
-	}
-	var expr strings.Builder
-	expr.WriteByte('{')
-	for i, f := range fields {
-		if i != 0 {
-			expr.WriteByte(',')
-		}
-		tmp := strings.Split(f, ".")
-		expr.WriteString(tmp[len(tmp)-1])
-		expr.WriteByte(':')
-		expr.WriteString("block.")
-		expr.WriteString(f)
-	}
-	expr.WriteByte('}')
-	return expr.String()
-}
-
 type blockScope struct {
 	Block *datasource.BlockInfo `json:"block"`
 }
@@ -192,9 +165,8 @@ func (d *TezosDatasource) doQuery(ctx context.Context, ds *datasource.Datasource
 			return response
 		}
 
-		expr := q.Expression()
 		var frame *data.Frame
-		if frame, response.Error = makeFrame(blockInfo, expr); response.Error != nil {
+		if frame, response.Error = makeFrame(blockInfo, q.Expr); response.Error != nil {
 			return response
 		}
 
@@ -202,7 +174,7 @@ func (d *TezosDatasource) doQuery(ctx context.Context, ds *datasource.Datasource
 			channel := live.Channel{
 				Scope:     live.ScopeDatasource,
 				Namespace: pCtx.DataSourceInstanceSettings.UID,
-				Path:      base64.RawStdEncoding.EncodeToString([]byte(expr)),
+				Path:      base64.RawStdEncoding.EncodeToString([]byte(q.Expr)),
 			}
 			frame.SetMeta(&data.FrameMeta{Channel: channel.String()})
 		}

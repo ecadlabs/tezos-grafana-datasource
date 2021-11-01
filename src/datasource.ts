@@ -8,13 +8,12 @@ export class DataSource extends DataSourceWithBackend<Query, DataSourceOptions> 
     super(instanceSettings);
   }
 
+  static buildExpression(fields: string[]): string {
+    return '{ ' + fields.map((f) => f.slice(f.lastIndexOf('.') + 1) + ': block.' + f).join(', ') + ' }';
+  }
+
   async getFieldsQuery(request: QueryType): Promise<FieldType[]> {
-    const targets: Query[] = [
-      {
-        refId: 'fields',
-        queryType: request,
-      },
-    ];
+    const targets: Query[] = [{ refId: 'fields', queryType: request }];
     const response = await lastValueFrom(this.query({ targets } as DataQueryRequest<Query>));
     if (response.data.length) {
       const df = toDataFrame(response.data[0]);
