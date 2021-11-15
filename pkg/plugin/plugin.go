@@ -3,13 +3,13 @@ package plugin
 import (
 	"context"
 	"encoding/base64"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
 
 	"cuelang.org/go/cue"
 	"cuelang.org/go/cue/cuecontext"
+	"github.com/ecadlabs/jtree"
 	"github.com/ecadlabs/tezos-grafana-datasource/pkg/client"
 	"github.com/ecadlabs/tezos-grafana-datasource/pkg/datasource"
 	"github.com/ecadlabs/tezos-grafana-datasource/pkg/storage/bolt"
@@ -39,7 +39,7 @@ type datasourceConfig struct {
 
 func (d *TezosDatasource) newDatasource(is *backend.DataSourceInstanceSettings) (*datasource.Datasource, error) {
 	var conf datasourceConfig
-	if err := json.Unmarshal(is.JSONData, &conf); err != nil {
+	if err := jtree.Unmarshal(is.JSONData, &conf); err != nil {
 		return nil, err
 	}
 	return &datasource.Datasource{
@@ -154,7 +154,7 @@ func (d *TezosDatasource) doQuery(ctx context.Context, ds *datasource.Datasource
 	response := backend.DataResponse{}
 	var q queryModel
 
-	if response.Error = json.Unmarshal(query.JSON, &q); response.Error != nil {
+	if response.Error = jtree.Unmarshal(query.JSON, &q); response.Error != nil {
 		return response
 	}
 

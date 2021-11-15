@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,7 +9,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/ecadlabs/jtree"
 	"github.com/ecadlabs/tezos-grafana-datasource/pkg/model"
+	"github.com/ecadlabs/tezos-grafana-datasource/pkg/model/block"
 )
 
 type HTTPError struct {
@@ -70,7 +71,7 @@ func (c *Client) NewGetBlockHeaderRequest(ctx context.Context, blockID string) (
 	return http.NewRequestWithContext(ctx, "GET", u, nil)
 }
 
-func (c *Client) GetBlockHeader(ctx context.Context, blockID string) (*model.BlockHeader, error) {
+func (c *Client) GetBlockHeader(ctx context.Context, blockID string) (*block.Header, error) {
 	req, err := c.NewGetBlockHeaderRequest(ctx, blockID)
 	if err != nil {
 		return nil, fmt.Errorf("getBlockHeader: %w", err)
@@ -81,8 +82,8 @@ func (c *Client) GetBlockHeader(ctx context.Context, blockID string) (*model.Blo
 	}
 	defer res.Close()
 
-	var v model.BlockHeader
-	dec := json.NewDecoder(res)
+	var v block.Header
+	dec := jtree.NewDecoder(res)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&v); err != nil {
 		return nil, fmt.Errorf("getBlockHeader: %w", err)
@@ -95,7 +96,7 @@ func (c *Client) NewGetBlockRequest(ctx context.Context, blockID string) (*http.
 	return http.NewRequestWithContext(ctx, "GET", u, nil)
 }
 
-func (c *Client) GetBlock(ctx context.Context, blockID string) (*model.Block, error) {
+func (c *Client) GetBlock(ctx context.Context, blockID string) (*block.Block, error) {
 	req, err := c.NewGetBlockRequest(ctx, blockID)
 	if err != nil {
 		return nil, fmt.Errorf("getBlock: %w", err)
@@ -106,8 +107,8 @@ func (c *Client) GetBlock(ctx context.Context, blockID string) (*model.Block, er
 	}
 	defer res.Close()
 
-	var v model.Block
-	dec := json.NewDecoder(res)
+	var v block.Block
+	dec := jtree.NewDecoder(res)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&v); err != nil {
 		return nil, fmt.Errorf("getBlock: %w", err)
@@ -132,7 +133,7 @@ func (c *Client) GetProtocolConstants(ctx context.Context) (*model.ProtocolConst
 	defer res.Close()
 
 	var v model.ProtocolConstants
-	dec := json.NewDecoder(res)
+	dec := jtree.NewDecoder(res)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&v); err != nil {
 		return nil, fmt.Errorf("getProtocolConstants: %w", err)
@@ -145,7 +146,7 @@ func (c *Client) NewGetBlockOperationsRequest(ctx context.Context, blockID strin
 	return http.NewRequestWithContext(ctx, "GET", u, nil)
 }
 
-func (c *Client) GetBlockOperations(ctx context.Context, blockID string) (model.BlockOperations, error) {
+func (c *Client) GetBlockOperations(ctx context.Context, blockID string) (block.Operations, error) {
 	req, err := c.NewGetBlockOperationsRequest(ctx, blockID)
 	if err != nil {
 		return nil, fmt.Errorf("getBlockOperations: %w", err)
@@ -156,8 +157,8 @@ func (c *Client) GetBlockOperations(ctx context.Context, blockID string) (model.
 	}
 	defer res.Close()
 
-	var v model.BlockOperations
-	dec := json.NewDecoder(res)
+	var v block.Operations
+	dec := jtree.NewDecoder(res)
 	dec.DisallowUnknownFields()
 	if err := dec.Decode(&v); err != nil {
 		return nil, fmt.Errorf("getBlockOperations: %w", err)
@@ -188,7 +189,7 @@ func (c *Client) GetMinimalValidTime(ctx context.Context, blockID string, priori
 	}
 	defer res.Close()
 
-	dec := json.NewDecoder(res)
+	dec := jtree.NewDecoder(res)
 	dec.DisallowUnknownFields()
 	var t time.Time
 	if err = dec.Decode(&t); err != nil {
@@ -202,7 +203,7 @@ func (c *Client) NewGetMonitorHeadsRequest(ctx context.Context) (*http.Request, 
 	return http.NewRequestWithContext(ctx, "GET", u, nil)
 }
 
-func (c *Client) GetMonitorHeads(ctx context.Context) (headerCh <-chan *model.ShellBlockHeader, errorsCh <-chan error, err error) {
+func (c *Client) GetMonitorHeads(ctx context.Context) (headerCh <-chan *block.ShellHeader, errorsCh <-chan error, err error) {
 	req, err := c.NewGetMonitorHeadsRequest(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("getMonitorHeads: %w", err)
@@ -212,7 +213,7 @@ func (c *Client) GetMonitorHeads(ctx context.Context) (headerCh <-chan *model.Sh
 		return nil, nil, fmt.Errorf("getMonitorHeads: %w", err)
 	}
 
-	hdrCh := make(chan *model.ShellBlockHeader, 100)
+	hdrCh := make(chan *block.ShellHeader, 100)
 	errCh := make(chan error, 1)
 
 	go func() {
@@ -222,10 +223,10 @@ func (c *Client) GetMonitorHeads(ctx context.Context) (headerCh <-chan *model.Sh
 			close(errCh)
 		})()
 
-		dec := json.NewDecoder(res)
+		dec := jtree.NewDecoder(res)
 		dec.DisallowUnknownFields()
 		for {
-			var v model.ShellBlockHeader
+			var v block.ShellHeader
 			if err := dec.Decode(&v); err != nil {
 				if err != io.EOF {
 					errCh <- err

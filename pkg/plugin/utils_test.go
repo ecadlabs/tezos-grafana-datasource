@@ -44,23 +44,3 @@ func TestFieldSelectors(t *testing.T) {
 		},
 	}, f)
 }
-
-/*
-func TestCUE(t *testing.T) {
-	bs := blockScope{
-		Block: &datasource.BlockInfo{
-			BlockInfo: &model.BlockInfo{
-				Header: &model.BlockHeader{},
-			},
-			MinDelay: 10,
-			Delay:    10,
-		},
-	}
-
-	ctx := cuecontext.New()
-	scope := ctx.Encode(&bs)
-	val := ctx.CompileString(`{timestamp:block.header.timestamp,level:block.level}`, cue.Scope(scope))
-	t.Log(val)
-	assert.NoError(t, val.Err())
-}
-*/

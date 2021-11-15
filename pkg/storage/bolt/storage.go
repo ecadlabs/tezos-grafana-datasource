@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/ecadlabs/tezos-grafana-datasource/pkg/model"
+	"github.com/ecadlabs/tezos-grafana-datasource/pkg/model/block"
 	"github.com/ecadlabs/tezos-grafana-datasource/pkg/storage"
 )
 
@@ -17,10 +18,10 @@ type BoltStorage struct {
 	DB *DB
 }
 
-func (b *BoltStorage) GetBlockInfo(ctx context.Context, blockID model.Base58) (info *model.BlockInfo, err error) {
+func (b *BoltStorage) GetBlockInfo(ctx context.Context, blockID model.Base58) (info *block.Info, err error) {
 	err = b.DB.View(func(tx *Tx) error {
 		var ok bool
-		i := new(model.BlockInfo)
+		i := new(block.Info)
 		ok, err = tx.Bucket([]byte(bktBlockInfo)).Get(blockID, i)
 		if !ok {
 			return nil
@@ -34,7 +35,7 @@ func (b *BoltStorage) GetBlockInfo(ctx context.Context, blockID model.Base58) (i
 	return
 }
 
-func (b *BoltStorage) UpdateBlockInfo(ctx context.Context, info *model.BlockInfo) error {
+func (b *BoltStorage) UpdateBlockInfo(ctx context.Context, info *block.Info) error {
 	return b.DB.Update(func(tx *Tx) error {
 		return tx.Bucket([]byte(bktBlockInfo)).Put(info.Header.Hash, info)
 	})

@@ -6,6 +6,7 @@ import (
 
 	"github.com/ecadlabs/tezos-grafana-datasource/pkg/client"
 	"github.com/ecadlabs/tezos-grafana-datasource/pkg/model"
+	"github.com/ecadlabs/tezos-grafana-datasource/pkg/model/block"
 	"github.com/ecadlabs/tezos-grafana-datasource/pkg/storage"
 )
 
@@ -15,13 +16,13 @@ type Datasource struct {
 }
 
 type BlockInfo struct {
-	*model.BlockInfo
+	*block.Info
 	PredecessorTimestamp time.Time `json:"predecessor_timestamp"`
 	MinDelay             int64     `json:"minimal_delay"`
 	Delay                int64     `json:"delay"`
 }
 
-func (d *Datasource) getBlockInfo(ctx context.Context, blockID model.Base58) (*model.BlockInfo, error) {
+func (d *Datasource) getBlockInfo(ctx context.Context, blockID model.Base58) (*block.Info, error) {
 	info, err := d.DB.GetBlockInfo(ctx, blockID)
 	if err != nil {
 		return nil, err
@@ -29,17 +30,17 @@ func (d *Datasource) getBlockInfo(ctx context.Context, blockID model.Base58) (*m
 	if info != nil {
 		return info, nil
 	}
-	block, err := d.Client.GetBlock(ctx, blockID.String())
+	bl, err := d.Client.GetBlock(ctx, blockID.String())
 	if err != nil {
 		return nil, err
 	}
-	stat := block.Stat()
-	ts, err := d.Client.GetMinimalValidTime(ctx, block.Header.Predecessor.String(), int(block.Header.Priority), int(stat.Slots))
+	stat := bl.Stat()
+	ts, err := d.Client.GetMinimalValidTime(ctx, bl.Header.Predecessor.String(), int(bl.Header.Priority), int(stat.Slots))
 	if err != nil {
 		return nil, err
 	}
-	info = &model.BlockInfo{
-		Header:       block.GetHeader(),
+	info = &block.Info{
+		Header:       bl.GetHeader(),
 		Stat:         stat,
 		MinValidTime: ts,
 	}
@@ -67,7 +68,7 @@ func (d *Datasource) GetBlocksInfo(ctx context.Context, start, end time.Time) ([
 			return nil, err
 		}
 		info := &BlockInfo{
-			BlockInfo: i,
+			Info: i,
 		}
 
 		if prevBlock != nil {
@@ -117,7 +118,7 @@ func (d *Datasource) MonitorBlockInfo(ctx context.Context) (blockInfo <-chan *Bl
 		var err error
 	headerLoop:
 		for h := range headerCh {
-			var bi, pred *model.BlockInfo
+			var bi, pred *block.Info
 			if bi, err = d.getBlockInfo(ctx, h.Hash); err != nil {
 				break
 			}
@@ -126,7 +127,7 @@ func (d *Datasource) MonitorBlockInfo(ctx context.Context) (blockInfo <-chan *Bl
 			}
 
 			blockinfo := &BlockInfo{
-				BlockInfo:            bi,
+				Info:                 bi,
 				PredecessorTimestamp: pred.Header.Timestamp,
 				Delay:                int64(bi.Header.Timestamp.Sub(pred.Header.Timestamp)),
 				MinDelay:             int64(bi.MinValidTime.Sub(pred.Header.Timestamp)),

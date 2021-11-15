@@ -2,7 +2,6 @@ package plugin
 
 import (
 	"encoding"
-	"encoding/json"
 	"math/big"
 	"reflect"
 	"strings"
@@ -20,7 +19,6 @@ var (
 	bigFloatType  = reflect.TypeOf((*big.Float)(nil)).Elem()
 	bigRatType    = reflect.TypeOf((*big.Rat)(nil)).Elem()
 	textMarshaler = reflect.TypeOf((*encoding.TextMarshaler)(nil)).Elem()
-	jsonMarshaler = reflect.TypeOf((*json.Marshaler)(nil)).Elem()
 )
 
 // collect fields with corresponding selectors which are convertable to CUE types and then to Grafana types
@@ -44,7 +42,7 @@ func getStructTypeFields(t reflect.Type) (fields []*structField) {
 		}
 		if k := ft.Kind(); k >= reflect.Bool && k <= reflect.Float64 || k == reflect.String ||
 			ft == timeType || ft == bigIntType || ft == bigFloatType || ft == bigRatType ||
-			ft.Implements(jsonMarshaler) || ft.Implements(textMarshaler) {
+			ft.Implements(textMarshaler) {
 			fields = append(fields, &structField{Selector: []string{name}, Type: ft})
 		} else if ft.Kind() == reflect.Struct {
 			nestedFields := getStructTypeFields(ft)
