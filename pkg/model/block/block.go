@@ -26,74 +26,56 @@ func (b *Block) GetHeader() *Header {
 	}
 }
 
-func (b *Block) Stat() *Statistics {
-	var (
-		slots int
-		opCnt int
-		ops   NumOps
-	)
-	for _, tmp := range b.Operations {
-		for _, operation := range tmp {
-			for _, contents := range operation.Contents {
-				opCnt++
-				switch op := contents.(type) {
-				case *EndorsementWithSlotOperationContents:
-					ops.Endorsement++
-					if op.Metadata != nil {
-						slots += len(op.Metadata.Slots)
-					}
-				case *EndorsementOperationContents:
-					ops.Endorsement++
-					if op.Metadata != nil {
-						slots += len(op.Metadata.Slots)
-					}
-				default:
-					switch op.OperationKind() {
-					case "seed_nonce_revelation":
-						ops.SeedNonceRevelation++
-					case "double_endorsement_evidence":
-						ops.DoubleEndorsementEvidence++
-					case "double_baking_evidence":
-						ops.DoubleBakingEvidence++
-					case "activate_account":
-						ops.ActivateAccount++
-					case "proposals":
-						ops.Proposals++
-					case "ballot":
-						ops.Ballot++
-					case "reveal":
-						ops.Reveal++
-					case "transaction":
-						ops.Transaction++
-					case "origination":
-						ops.Origination++
-					case "delegation":
-						ops.Delegation++
-					case "failing_noop":
-						ops.FailingNoop++
-					}
-				}
-			}
-		}
+func (b *Block) GetMetadataInfo() *MetadataInfo {
+	m := b.Metadata
+	if m == nil {
+		return nil
 	}
-	return &Statistics{
-		NumOps: uint64(opCnt),
-		Ops:    &ops,
-		Slots:  uint64(slots),
+	return &MetadataInfo{
+		Protocol:                 m.Protocol,
+		NextProtocol:             m.NextProtocol,
+		MaxOperationsTTL:         m.MaxOperationsTTL,
+		MaxOperationDataLength:   m.MaxOperationDataLength,
+		MaxBlockHeaderLength:     m.MaxBlockHeaderLength,
+		Baker:                    m.Baker,
+		LevelInfo:                m.LevelInfo,
+		VotingPeriodInfo:         m.VotingPeriodInfo,
+		NonceHash:                m.NonceHash,
+		ConsumedGas:              m.ConsumedGas,
+		LiquidityBakingEscapeEMA: m.LiquidityBakingEscapeEMA,
 	}
 }
 
+func (b *Block) Stat() *Statistics {
+	stat := newStatistics()
+	for _, tmp := range b.Operations {
+		for _, operation := range tmp {
+			for _, contents := range operation.Contents {
+				stat.updateFromContents(contents)
+			}
+		}
+	}
+
+	if b.Metadata != nil {
+		for _, ir := range b.Metadata.ImplicitOperationsResults {
+			stat.updateFromContents(ir)
+		}
+	}
+
+	return stat
+}
+
 type ShellHeader struct {
-	Hash           model.Base58 `json:"hash"`
-	Level          int64        `json:"level"`
-	Proto          uint64       `json:"proto"`
-	Predecessor    model.Base58 `json:"predecessor"`
-	Timestamp      time.Time    `json:"timestamp"`
-	ValidationPass uint64       `json:"validation_pass"`
-	OperationsHash model.Base58 `json:"operations_hash"`
-	Fitness        [][]byte     `json:"fitness,[hex]"`
-	Context        model.Base58 `json:"context"`
-	ProtocolData   []byte       `json:"protocol_data,hex"`
+	Hash           model.Base58  `json:"hash"`
+	Level          int64         `json:"level"`
+	Proto          uint64        `json:"proto"`
+	Predecessor    model.Base58  `json:"predecessor"`
+	Timestamp      time.Time     `json:"timestamp"`
+	ValidationPass uint64        `json:"validation_pass"`
+	OperationsHash model.Base58  `json:"operations_hash"`
+	Fitness        []model.Bytes `json:"fitness"`
+	Context        model.Base58  `json:"context"`
+	ProtocolData   model.Bytes   `json:"protocol_data"`
 }
 
 type Header struct {
@@ -104,19 +86,19 @@ type Header struct {
 }
 
 type RawHeader struct {
-	Level                     int64        `json:"level"`
-	Proto                     uint64       `json:"proto"`
-	Predecessor               model.Base58 `json:"predecessor"`
-	Timestamp                 time.Time    `json:"timestamp"`
-	ValidationPass            uint64       `json:"validation_pass"`
-	OperationsHash            model.Base58 `json:"operations_hash"`
-	Fitness                   [][]byte     `json:"fitness,[hex]"`
-	Context                   model.Base58 `json:"context"`
-	Priority                  uint64       `json:"priority"`
-	ProofOfWorkNonce          []byte       `json:"proof_of_work_nonce,hex"`
-	SeedNonceHash             model.Base58 `json:"seed_nonce_hash,omitempty"`
-	LiquidityBakingEscapeVote bool         `json:"liquidity_baking_escape_vote"`
-	Signature                 model.Base58 `json:"signature"`
+	Level                     int64         `json:"level"`
+	Proto                     uint64        `json:"proto"`
+	Predecessor               model.Base58  `json:"predecessor"`
+	Timestamp                 time.Time     `json:"timestamp"`
+	ValidationPass            uint64        `json:"validation_pass"`
+	OperationsHash            model.Base58  `json:"operations_hash"`
+	Fitness                   []model.Bytes `json:"fitness"`
+	Context                   model.Base58  `json:"context"`
+	Priority                  uint64        `json:"priority"`
+	ProofOfWorkNonce          model.Bytes   `json:"proof_of_work_nonce"`
+	SeedNonceHash             model.Base58  `json:"seed_nonce_hash,omitempty"`
+	LiquidityBakingEscapeVote bool          `json:"liquidity_baking_escape_vote"`
+	Signature                 model.Base58  `json:"signature"`
 }
 
 type HeaderMetadata struct {

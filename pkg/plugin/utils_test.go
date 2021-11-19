@@ -27,20 +27,20 @@ func TestFieldSelectors(t *testing.T) {
 	f := getStructFields(&Struct0{})
 	assert.Equal(t, []*structField{
 		{
-			Selector: []string{"field0"},
-			Type:     reflect.TypeOf(""),
+			selector: []string{"field0"},
+			typ:      reflect.TypeOf(""),
 		},
 		{
-			Selector: []string{"field1"},
-			Type:     reflect.TypeOf(time.Time{}),
+			selector: []string{"field1"},
+			typ:      reflect.TypeOf(time.Time{}),
 		},
 		{
-			Selector: []string{"field2", "field0"},
-			Type:     reflect.TypeOf(int64(0)),
+			selector: []string{"field2", "field0"},
+			typ:      reflect.TypeOf(int64(0)),
 		},
 		{
-			Selector: []string{"field3"},
-			Type:     reflect.TypeOf(int64(0)),
+			selector: []string{"field3"},
+			typ:      reflect.TypeOf(int64(0)),
 		},
 	}, f)
 }

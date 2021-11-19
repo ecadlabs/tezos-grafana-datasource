@@ -42,6 +42,7 @@ func (d *Datasource) getBlockInfo(ctx context.Context, blockID model.Base58) (*b
 	info = &block.Info{
 		Header:       bl.GetHeader(),
 		Stat:         stat,
+		Metadata:     bl.GetMetadataInfo(),
 		MinValidTime: ts,
 	}
 	if err = d.DB.UpdateBlockInfo(ctx, info); err != nil {

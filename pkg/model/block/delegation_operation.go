@@ -35,8 +35,9 @@ type DelegationOperationMetadata struct {
 }
 
 func (d *DelegationOperationMetadata) GetBalanceUpdates() BalanceUpdates { return d.BalanceUpdates }
-func (d *DelegationOperationMetadata) GetResult() (OperationResult, InternalOperationResults) {
-	return d.OperationResult, d.InternalOperationResults
+func (d *DelegationOperationMetadata) GetResult() OperationResult        { return d.OperationResult }
+func (d *DelegationOperationMetadata) GetInternalOperationResults() InternalOperationResults {
+	return d.InternalOperationResults
 }
 
 type DelegationOperationResult interface {
@@ -46,8 +47,8 @@ type DelegationOperationResult interface {
 
 type DelegationOperationResultBase RevealOperationResultBase
 
-func (r *DelegationOperationResultBase) GetConsumedGas() (gas, milligas *big.Int) {
-	return r.ConsumedGas, r.ConsumedMilligas
+func (r *DelegationOperationResultBase) GetConsumedMilligas() *big.Int {
+	return getConsumedMilligas(r.ConsumedGas, r.ConsumedMilligas)
 }
 
 type DelegationOperationResultApplied struct {
@@ -89,14 +90,14 @@ func delegationOperationResultFunc(n jtree.Node, ctx *jtree.Context) (Delegation
 		return nil, errors.New("status field is missing")
 	}
 	var dest DelegationOperationResult
-	switch status {
-	case "applied":
+	switch OperationStatus(status) {
+	case StatusApplied:
 		dest = new(DelegationOperationResultApplied)
-	case "failed":
+	case StatusFailed:
 		dest = new(DelegationOperationResultFailed)
-	case "skipped":
+	case StatusSkipped:
 		dest = new(DelegationOperationResultSkipped)
-	case "backtracked":
+	case StatusBacktracked:
 		dest = new(DelegationOperationResultBacktracked)
 	default:
 		return nil, fmt.Errorf("unknown operation result status: %s", status)
@@ -114,8 +115,8 @@ type DelegationInternalOperationResult struct {
 	Result   DelegationOperationResult `json:"result"`
 }
 
-func (d *DelegationInternalOperationResult) OperationKind() OperationKind     { return d.Kind }
-func (d *DelegationInternalOperationResult) OperationResult() OperationResult { return d.Result }
+func (d *DelegationInternalOperationResult) OperationKind() OperationKind { return d.Kind }
+func (d *DelegationInternalOperationResult) GetResult() OperationResult   { return d.Result }
 
 type DelegationImplicitOperationResult struct {
 	Kind OperationKind `json:"kind"`
@@ -125,13 +126,13 @@ type DelegationImplicitOperationResult struct {
 func (r *DelegationImplicitOperationResult) OperationKind() OperationKind { return r.Kind }
 
 var (
-	_ WithBalanceUpdates          = (*DelegationOperationMetadata)(nil)
-	_ OperationMetadataWithResult = (*DelegationOperationMetadata)(nil)
-	_ WithConsumedGas             = (*DelegationOperationResultApplied)(nil)
-	_ WithConsumedGas             = (*DelegationOperationResultBacktracked)(nil)
-	_ WithConsumedGas             = (*DelegationImplicitOperationResult)(nil)
-	_ WithErrors                  = (*DelegationOperationResultFailed)(nil)
-	_ WithErrors                  = (*DelegationOperationResultBacktracked)(nil)
+	_ WithBalanceUpdates           = (*DelegationOperationMetadata)(nil)
+	_ WithInternalOperationResults = (*DelegationOperationMetadata)(nil)
+	_ WithConsumedMilligas         = (*DelegationOperationResultApplied)(nil)
+	_ WithConsumedMilligas         = (*DelegationOperationResultBacktracked)(nil)
+	_ WithConsumedMilligas         = (*DelegationImplicitOperationResult)(nil)
+	_ WithErrors                   = (*DelegationOperationResultFailed)(nil)
+	_ WithErrors                   = (*DelegationOperationResultBacktracked)(nil)
 )
 
 func init() {

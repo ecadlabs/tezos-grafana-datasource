@@ -104,20 +104,29 @@ func operationContentsAndResultFunc(n jtree.Node, ctx *jtree.Context) (Operation
 
 type OperationMetadata interface{}
 
-type OperationMetadataWithResult interface {
-	GetResult() (OperationResult, InternalOperationResults)
+type WithResult interface {
+	GetResult() OperationResult
+}
+
+type WithInternalOperationResults interface {
+	WithResult
+	GetInternalOperationResults() InternalOperationResults
 }
 
 type WithBalanceUpdates interface {
 	GetBalanceUpdates() BalanceUpdates
 }
 
-type WithConsumedGas interface {
-	GetConsumedGas() (gas, milligas *big.Int) // can be nil
+type WithConsumedMilligas interface {
+	GetConsumedMilligas() *big.Int // can be nil
 }
 
 type WithErrors interface {
 	GetErrors() []*model.Error // can be nil
+}
+
+type WithStorage interface {
+	GetStorageSize() *big.Int // can be nil
 }
 
 type OperationResult interface {
@@ -135,7 +144,7 @@ type OperationResultSkipped struct {
 
 type InternalOperationResult interface {
 	OperationContents
-	OperationResult() OperationResult
+	WithResult
 }
 
 func internalOperationResultFunc(n jtree.Node, ctx *jtree.Context) (InternalOperationResult, error) {
@@ -168,7 +177,7 @@ func internalOperationResultFunc(n jtree.Node, ctx *jtree.Context) (InternalOper
 }
 
 type ImplicitOperationResult interface {
-	OperationKind() OperationKind
+	OperationContents
 }
 
 func implicitOperationResultFunc(n jtree.Node, ctx *jtree.Context) (ImplicitOperationResult, error) {
@@ -272,6 +281,14 @@ type EndorsementWithSlotOperationContents struct {
 	Metadata    *EndorsementOperationMetadata `json:"metadata,omitempty"`
 }
 
+func (e *EndorsementWithSlotOperationContents) OperationKind() OperationKind { return e.Kind }
+func (e *EndorsementWithSlotOperationContents) OperationMetadata() OperationMetadata {
+	if e.Metadata != nil {
+		return e.Metadata
+	}
+	return nil
+}
+
 type InlinedEndorsementOperation struct {
 	Branch     model.Base58                        `json:"branch"`
 	Operations InlinedEndorsementOperationContents `json:"operations"`
@@ -289,15 +306,7 @@ type EndorsementOperationMetadata struct {
 	Slots          []uint64       `json:"slots"`
 }
 
-func (e *EndorsementOperationMetadata) GetBalanceUpdates() BalanceUpdates    { return e.BalanceUpdates }
-func (e *EndorsementWithSlotOperationContents) OperationKind() OperationKind { return e.Kind }
-
-func (e *EndorsementWithSlotOperationContents) OperationMetadata() OperationMetadata {
-	if e.Metadata != nil {
-		return e.Metadata
-	}
-	return nil
-}
+func (e *EndorsementOperationMetadata) GetBalanceUpdates() BalanceUpdates { return e.BalanceUpdates }
 
 type EndorsementOperationContents struct {
 	Kind     OperationKind                 `json:"kind"`
@@ -317,7 +326,7 @@ func (e *EndorsementOperationContents) OperationMetadata() OperationMetadata {
 type SeedNonceRevelationOperationContents struct {
 	Kind     OperationKind           `json:"kind"`
 	Level    int64                   `json:"level"`
-	Nonce    []byte                  `json:"nonce,hex"`
+	Nonce    model.Bytes             `json:"nonce"`
 	Metadata *BalanceUpdatesMetadata `json:"metadata,omitempty"`
 }
 
@@ -410,6 +419,15 @@ func (b *BallotOperationContents) OperationMetadata() OperationMetadata {
 type Script struct {
 	Code    Expr `json:"code"`
 	Storage Expr `json:"storage"`
+}
+
+func getConsumedMilligas(gas, milligas *big.Int) *big.Int {
+	if milligas != nil {
+		return milligas
+	} else if gas != nil {
+		return new(big.Int).Mul(gas, big.NewInt(1000))
+	}
+	return nil
 }
 
 func init() {

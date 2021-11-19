@@ -37,9 +37,11 @@ type RegisterGlobalConstantOperationMetadata struct {
 func (r *RegisterGlobalConstantOperationMetadata) GetBalanceUpdates() BalanceUpdates {
 	return r.BalanceUpdates
 }
-
-func (r *RegisterGlobalConstantOperationMetadata) GetResult() (OperationResult, InternalOperationResults) {
-	return r.OperationResult, r.InternalOperationResults
+func (r *RegisterGlobalConstantOperationMetadata) GetResult() OperationResult {
+	return r.OperationResult
+}
+func (r *RegisterGlobalConstantOperationMetadata) GetInternalOperationResults() InternalOperationResults {
+	return r.InternalOperationResults
 }
 
 type RegisterGlobalConstantOperationResult interface {
@@ -54,8 +56,12 @@ type RegisterGlobalConstantOperationResultBase struct {
 	GlobalAddress  model.Base58   `json:"global_address"`
 }
 
-func (r *RegisterGlobalConstantOperationResultBase) GetConsumedGas() (gas, milligas *big.Int) {
-	return &r.ConsumedGas, nil
+func (r *RegisterGlobalConstantOperationResultBase) GetConsumedMilligas() *big.Int {
+	return getConsumedMilligas(&r.ConsumedGas, nil)
+}
+
+func (r *RegisterGlobalConstantOperationResultBase) GetStorageSize() *big.Int {
+	return &r.StorageSize
 }
 
 type RegisterGlobalConstantOperationResultApplied struct {
@@ -107,14 +113,14 @@ func registerGlobalConstantOperationResultFunc(n jtree.Node, ctx *jtree.Context)
 		return nil, errors.New("status field is missing")
 	}
 	var dest RegisterGlobalConstantOperationResult
-	switch status {
-	case "applied":
+	switch OperationStatus(status) {
+	case StatusApplied:
 		dest = new(RegisterGlobalConstantOperationResultApplied)
-	case "failed":
+	case StatusFailed:
 		dest = new(RegisterGlobalConstantOperationResultFailed)
-	case "skipped":
+	case StatusSkipped:
 		dest = new(RegisterGlobalConstantOperationResultSkipped)
-	case "backtracked":
+	case StatusBacktracked:
 		dest = new(RegisterGlobalConstantOperationResultBacktracked)
 	default:
 		return nil, fmt.Errorf("unknown operation result status: %s", status)
@@ -133,19 +139,21 @@ type RegisterGlobalConstantInternalOperationResult struct {
 }
 
 func (r *RegisterGlobalConstantInternalOperationResult) OperationKind() OperationKind { return r.Kind }
-func (r *RegisterGlobalConstantInternalOperationResult) OperationResult() OperationResult {
+func (r *RegisterGlobalConstantInternalOperationResult) GetResult() OperationResult {
 	return r.Result
 }
 
 var (
-	_ WithBalanceUpdates          = (*RegisterGlobalConstantOperationMetadata)(nil)
-	_ WithBalanceUpdates          = (*RegisterGlobalConstantOperationResultApplied)(nil)
-	_ WithBalanceUpdates          = (*RegisterGlobalConstantOperationResultBacktracked)(nil)
-	_ OperationMetadataWithResult = (*RegisterGlobalConstantOperationMetadata)(nil)
-	_ WithConsumedGas             = (*RegisterGlobalConstantOperationResultApplied)(nil)
-	_ WithConsumedGas             = (*RegisterGlobalConstantOperationResultBacktracked)(nil)
-	_ WithErrors                  = (*RegisterGlobalConstantOperationResultFailed)(nil)
-	_ WithErrors                  = (*RegisterGlobalConstantOperationResultBacktracked)(nil)
+	_ WithBalanceUpdates           = (*RegisterGlobalConstantOperationMetadata)(nil)
+	_ WithBalanceUpdates           = (*RegisterGlobalConstantOperationResultApplied)(nil)
+	_ WithBalanceUpdates           = (*RegisterGlobalConstantOperationResultBacktracked)(nil)
+	_ WithInternalOperationResults = (*RegisterGlobalConstantOperationMetadata)(nil)
+	_ WithConsumedMilligas         = (*RegisterGlobalConstantOperationResultApplied)(nil)
+	_ WithConsumedMilligas         = (*RegisterGlobalConstantOperationResultBacktracked)(nil)
+	_ WithStorage                  = (*RegisterGlobalConstantOperationResultApplied)(nil)
+	_ WithStorage                  = (*RegisterGlobalConstantOperationResultBacktracked)(nil)
+	_ WithErrors                   = (*RegisterGlobalConstantOperationResultFailed)(nil)
+	_ WithErrors                   = (*RegisterGlobalConstantOperationResultBacktracked)(nil)
 )
 
 func init() {

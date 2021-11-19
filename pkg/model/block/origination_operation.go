@@ -37,9 +37,9 @@ type OriginationOperationMetadata struct {
 }
 
 func (o *OriginationOperationMetadata) GetBalanceUpdates() BalanceUpdates { return o.BalanceUpdates }
-
-func (o *OriginationOperationMetadata) GetResult() (OperationResult, InternalOperationResults) {
-	return o.OperationResult, o.InternalOperationResults
+func (o *OriginationOperationMetadata) GetResult() OperationResult        { return o.OperationResult }
+func (o *OriginationOperationMetadata) GetInternalOperationResults() InternalOperationResults {
+	return o.InternalOperationResults
 }
 
 type OriginationOperationResult interface {
@@ -58,8 +58,12 @@ type OriginationOperationResultBase struct {
 	LazyStorageDiff     jtree.Node     `json:"lazy_storage_diff,omitempty"`
 }
 
-func (r *OriginationOperationResultBase) GetConsumedGas() (gas, milligas *big.Int) {
-	return r.ConsumedGas, r.ConsumedMilligas
+func (r *OriginationOperationResultBase) GetConsumedMilligas() *big.Int {
+	return getConsumedMilligas(r.ConsumedGas, r.ConsumedMilligas)
+}
+
+func (r *OriginationOperationResultBase) GetStorageSize() *big.Int {
+	return r.StorageSize
 }
 
 type OriginationOperationResultApplied struct {
@@ -104,14 +108,14 @@ func originationOperationResultFunc(n jtree.Node, ctx *jtree.Context) (Originati
 		return nil, errors.New("status field is missing")
 	}
 	var dest OriginationOperationResult
-	switch status {
-	case "applied":
+	switch OperationStatus(status) {
+	case StatusApplied:
 		dest = new(OriginationOperationResultApplied)
-	case "failed":
+	case StatusFailed:
 		dest = new(OriginationOperationResultFailed)
-	case "skipped":
+	case StatusSkipped:
 		dest = new(OriginationOperationResultSkipped)
-	case "backtracked":
+	case StatusBacktracked:
 		dest = new(OriginationOperationResultBacktracked)
 	default:
 		return nil, fmt.Errorf("unknown operation result status: %s", status)
@@ -131,8 +135,8 @@ type OriginationInternalOperationResult struct {
 	Result   OriginationOperationResult `json:"result"`
 }
 
-func (o *OriginationInternalOperationResult) OperationKind() OperationKind     { return o.Kind }
-func (o *OriginationInternalOperationResult) OperationResult() OperationResult { return o.Result }
+func (o *OriginationInternalOperationResult) OperationKind() OperationKind { return o.Kind }
+func (o *OriginationInternalOperationResult) GetResult() OperationResult   { return o.Result }
 
 type OriginationImplicitOperationResult struct {
 	Kind OperationKind `json:"kind"`
@@ -142,14 +146,17 @@ type OriginationImplicitOperationResult struct {
 func (r *OriginationImplicitOperationResult) OperationKind() OperationKind { return r.Kind }
 
 var (
-	_ WithBalanceUpdates          = (*OriginationOperationMetadata)(nil)
-	_ OperationMetadataWithResult = (*OriginationOperationMetadata)(nil)
-	_ WithConsumedGas             = (*OriginationOperationResultApplied)(nil)
-	_ WithConsumedGas             = (*OriginationOperationResultBacktracked)(nil)
-	_ WithConsumedGas             = (*OriginationImplicitOperationResult)(nil)
-	_ WithErrors                  = (*OriginationOperationResultFailed)(nil)
-	_ WithErrors                  = (*OriginationOperationResultBacktracked)(nil)
-	_ WithBalanceUpdates          = (*OriginationOperationResultApplied)(nil)
+	_ WithBalanceUpdates           = (*OriginationOperationMetadata)(nil)
+	_ WithInternalOperationResults = (*OriginationOperationMetadata)(nil)
+	_ WithConsumedMilligas         = (*OriginationOperationResultApplied)(nil)
+	_ WithConsumedMilligas         = (*OriginationOperationResultBacktracked)(nil)
+	_ WithConsumedMilligas         = (*OriginationImplicitOperationResult)(nil)
+	_ WithStorage                  = (*OriginationOperationResultApplied)(nil)
+	_ WithStorage                  = (*OriginationOperationResultBacktracked)(nil)
+	_ WithStorage                  = (*OriginationImplicitOperationResult)(nil)
+	_ WithErrors                   = (*OriginationOperationResultFailed)(nil)
+	_ WithErrors                   = (*OriginationOperationResultBacktracked)(nil)
+	_ WithBalanceUpdates           = (*OriginationOperationResultApplied)(nil)
 )
 
 func init() {

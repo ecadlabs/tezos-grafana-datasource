@@ -115,13 +115,13 @@ func makeFrame(info []*datasource.BlockInfo, expr string) (*data.Frame, error) {
 			if err != nil {
 				return nil, err
 			}
-			var ii int
-			for v.Next() && ii <= len(fields) {
+			var cnt int
+			for v.Next() {
 				if v.Value().Err() != nil {
 					return nil, v.Value().Err()
 				}
 
-				if ii == len(fields) {
+				if cnt == len(fields) {
 					if converter, err := newFieldConverter("", v.Value(), len(info)); err != nil {
 						return nil, err
 					} else {
@@ -130,10 +130,10 @@ func makeFrame(info []*datasource.BlockInfo, expr string) (*data.Frame, error) {
 							return nil, err
 						}
 					}
-				} else if err := fields[ii].Set(i, v.Value()); err != nil {
+				} else if err := fields[cnt].Set(i, v.Value()); err != nil {
 					return nil, err
 				}
-				ii++
+				cnt++
 			}
 		} else {
 			return nil, fmt.Errorf("list or struct type expected: %v", val.Kind())
@@ -187,8 +187,8 @@ func (d *TezosDatasource) doQuery(ctx context.Context, ds *datasource.Datasource
 		selectors := make([]string, len(fields))
 		types := make([]string, len(fields))
 		for i, f := range fields {
-			selectors[i] = strings.Join(f.Selector, ".")
-			types[i] = f.Type.Name()
+			selectors[i] = strings.Join(f.selector, ".")
+			types[i] = f.typ.Name()
 		}
 		frame := data.NewFrame("", data.NewField("selector", nil, selectors), data.NewField("type", nil, types))
 		response.Frames = append(response.Frames, frame)

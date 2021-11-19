@@ -35,8 +35,9 @@ type RevealOperationMetadata struct {
 }
 
 func (r *RevealOperationMetadata) GetBalanceUpdates() BalanceUpdates { return r.BalanceUpdates }
-func (r *RevealOperationMetadata) GetResult() (OperationResult, InternalOperationResults) {
-	return r.OperationResult, r.InternalOperationResults
+func (r *RevealOperationMetadata) GetResult() OperationResult        { return r.OperationResult }
+func (r *RevealOperationMetadata) GetInternalOperationResults() InternalOperationResults {
+	return r.InternalOperationResults
 }
 
 type RevealOperationResult interface {
@@ -49,8 +50,8 @@ type RevealOperationResultBase struct {
 	ConsumedMilligas *big.Int `json:"consumed_milligas,string,omitempty"`
 }
 
-func (r *RevealOperationResultBase) GetConsumedGas() (gas, milligas *big.Int) {
-	return r.ConsumedGas, r.ConsumedMilligas
+func (r *RevealOperationResultBase) GetConsumedMilligas() *big.Int {
+	return getConsumedMilligas(r.ConsumedGas, r.ConsumedMilligas)
 }
 
 type RevealOperationResultApplied struct {
@@ -92,14 +93,14 @@ func revealOperationResultFunc(n jtree.Node, ctx *jtree.Context) (RevealOperatio
 		return nil, errors.New("status field is missing")
 	}
 	var dest RevealOperationResult
-	switch status {
-	case "applied":
+	switch OperationStatus(status) {
+	case StatusApplied:
 		dest = new(RevealOperationResultApplied)
-	case "failed":
+	case StatusFailed:
 		dest = new(RevealOperationResultFailed)
-	case "skipped":
+	case StatusSkipped:
 		dest = new(RevealOperationResultSkipped)
-	case "backtracked":
+	case StatusBacktracked:
 		dest = new(RevealOperationResultBacktracked)
 	default:
 		return nil, fmt.Errorf("unknown operation result status: %s", status)
@@ -117,8 +118,8 @@ type RevealInternalOperationResult struct {
 	Result    RevealOperationResult `json:"result"`
 }
 
-func (r *RevealInternalOperationResult) OperationKind() OperationKind     { return r.Kind }
-func (r *RevealInternalOperationResult) OperationResult() OperationResult { return r.Result }
+func (r *RevealInternalOperationResult) OperationKind() OperationKind { return r.Kind }
+func (r *RevealInternalOperationResult) GetResult() OperationResult   { return r.Result }
 
 type RevealImplicitOperationResult struct {
 	Kind OperationKind `json:"kind"`
@@ -128,13 +129,13 @@ type RevealImplicitOperationResult struct {
 func (r *RevealImplicitOperationResult) OperationKind() OperationKind { return r.Kind }
 
 var (
-	_ WithBalanceUpdates          = (*RevealOperationMetadata)(nil)
-	_ OperationMetadataWithResult = (*RevealOperationMetadata)(nil)
-	_ WithConsumedGas             = (*RevealOperationResultApplied)(nil)
-	_ WithConsumedGas             = (*RevealOperationResultBacktracked)(nil)
-	_ WithConsumedGas             = (*RevealImplicitOperationResult)(nil)
-	_ WithErrors                  = (*RevealOperationResultFailed)(nil)
-	_ WithErrors                  = (*RevealOperationResultBacktracked)(nil)
+	_ WithBalanceUpdates           = (*RevealOperationMetadata)(nil)
+	_ WithInternalOperationResults = (*RevealOperationMetadata)(nil)
+	_ WithConsumedMilligas         = (*RevealOperationResultApplied)(nil)
+	_ WithConsumedMilligas         = (*RevealOperationResultBacktracked)(nil)
+	_ WithConsumedMilligas         = (*RevealImplicitOperationResult)(nil)
+	_ WithErrors                   = (*RevealOperationResultFailed)(nil)
+	_ WithErrors                   = (*RevealOperationResultBacktracked)(nil)
 )
 
 func init() {

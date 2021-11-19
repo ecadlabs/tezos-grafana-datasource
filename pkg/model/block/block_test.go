@@ -1,6 +1,7 @@
 package block_test
 
 import (
+	"encoding/json"
 	"io/fs"
 	"os"
 	"testing"
@@ -28,6 +29,17 @@ func TestBlock(t *testing.T) {
 
 			var b block.Block
 			assert.NoError(t, dec.Decode(&b))
+
+			hdr := b.GetHeader()
+			buf, _ := json.MarshalIndent(hdr, "", "    ")
+			t.Log(string(buf))
+
+			buf, _ = json.MarshalIndent(b.Metadata, "", "    ")
+			t.Log(string(buf))
+
+			stat := b.Stat()
+			buf, _ = json.MarshalIndent(stat, "", "    ")
+			t.Log(string(buf))
 		})
 	}
 }

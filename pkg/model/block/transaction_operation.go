@@ -42,8 +42,9 @@ type TransactionOperationMetadata struct {
 }
 
 func (t *TransactionOperationMetadata) GetBalanceUpdates() BalanceUpdates { return t.BalanceUpdates }
-func (t *TransactionOperationMetadata) GetResult() (OperationResult, InternalOperationResults) {
-	return t.OperationResult, t.InternalOperationResults
+func (t *TransactionOperationMetadata) GetResult() OperationResult        { return t.OperationResult }
+func (t *TransactionOperationMetadata) GetInternalOperationResults() InternalOperationResults {
+	return t.InternalOperationResults
 }
 
 type TransactionOperationResult interface {
@@ -64,8 +65,12 @@ type TransactionOperationResultBase struct {
 	LazyStorageDiff              jtree.Node     `json:"lazy_storage_diff,omitempty"`
 }
 
-func (r *TransactionOperationResultBase) GetConsumedGas() (gas, milligas *big.Int) {
-	return r.ConsumedGas, r.ConsumedMilligas
+func (r *TransactionOperationResultBase) GetConsumedMilligas() *big.Int {
+	return getConsumedMilligas(r.ConsumedGas, r.ConsumedMilligas)
+}
+
+func (r *TransactionOperationResultBase) GetStorageSize() *big.Int {
+	return r.StorageSize
 }
 
 type TransactionOperationResultApplied struct {
@@ -134,8 +139,8 @@ type TransactionInternalOperationResult struct {
 	Result      TransactionOperationResult `json:"result"`
 }
 
-func (t *TransactionInternalOperationResult) OperationKind() OperationKind     { return t.Kind }
-func (t *TransactionInternalOperationResult) OperationResult() OperationResult { return t.Result }
+func (t *TransactionInternalOperationResult) OperationKind() OperationKind { return t.Kind }
+func (t *TransactionInternalOperationResult) GetResult() OperationResult   { return t.Result }
 
 type TransactionImplicitOperationResult struct {
 	Kind OperationKind `json:"kind"`
@@ -145,13 +150,16 @@ type TransactionImplicitOperationResult struct {
 func (r *TransactionImplicitOperationResult) OperationKind() OperationKind { return r.Kind }
 
 var (
-	_ WithBalanceUpdates          = (*TransactionOperationMetadata)(nil)
-	_ OperationMetadataWithResult = (*TransactionOperationMetadata)(nil)
-	_ WithConsumedGas             = (*TransactionOperationResultApplied)(nil)
-	_ WithConsumedGas             = (*TransactionOperationResultBacktracked)(nil)
-	_ WithConsumedGas             = (*TransactionImplicitOperationResult)(nil)
-	_ WithErrors                  = (*TransactionOperationResultFailed)(nil)
-	_ WithErrors                  = (*TransactionOperationResultBacktracked)(nil)
+	_ WithBalanceUpdates   = (*TransactionOperationMetadata)(nil)
+	_ WithResult           = (*TransactionOperationMetadata)(nil)
+	_ WithConsumedMilligas = (*TransactionOperationResultApplied)(nil)
+	_ WithConsumedMilligas = (*TransactionOperationResultBacktracked)(nil)
+	_ WithConsumedMilligas = (*TransactionImplicitOperationResult)(nil)
+	_ WithStorage          = (*TransactionOperationResultApplied)(nil)
+	_ WithStorage          = (*TransactionOperationResultBacktracked)(nil)
+	_ WithStorage          = (*TransactionImplicitOperationResult)(nil)
+	_ WithErrors           = (*TransactionOperationResultFailed)(nil)
+	_ WithErrors           = (*TransactionOperationResultBacktracked)(nil)
 )
 
 func init() {

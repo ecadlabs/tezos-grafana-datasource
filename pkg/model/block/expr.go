@@ -5,6 +5,7 @@ import (
 	"math/big"
 
 	"github.com/ecadlabs/jtree"
+	"github.com/ecadlabs/tezos-grafana-datasource/pkg/model"
 )
 
 type Expr interface {
@@ -24,7 +25,7 @@ type String struct {
 func (*String) Kind() string { return "string" }
 
 type Bytes struct {
-	Bytes string `json:"bytes,hex"`
+	Bytes model.Bytes `json:"bytes"`
 }
 
 func (*Bytes) Kind() string { return "bytes" }
