@@ -27,40 +27,20 @@ func TestFieldSelectors(t *testing.T) {
 	f := getStructFields(&Struct0{})
 	assert.Equal(t, []*structField{
 		{
-			Selector: []string{"field0"},
-			Type:     reflect.TypeOf(""),
+			selector: []string{"field0"},
+			typ:      reflect.TypeOf(""),
 		},
 		{
-			Selector: []string{"field1"},
-			Type:     reflect.TypeOf(time.Time{}),
+			selector: []string{"field1"},
+			typ:      reflect.TypeOf(time.Time{}),
 		},
 		{
-			Selector: []string{"field2", "field0"},
-			Type:     reflect.TypeOf(int64(0)),
+			selector: []string{"field2", "field0"},
+			typ:      reflect.TypeOf(int64(0)),
 		},
 		{
-			Selector: []string{"field3"},
-			Type:     reflect.TypeOf(int64(0)),
+			selector: []string{"field3"},
+			typ:      reflect.TypeOf(int64(0)),
 		},
 	}, f)
 }
-
-/*
-func TestCUE(t *testing.T) {
-	bs := blockScope{
-		Block: &datasource.BlockInfo{
-			BlockInfo: &model.BlockInfo{
-				Header: &model.BlockHeader{},
-			},
-			MinDelay: 10,
-			Delay:    10,
-		},
-	}
-
-	ctx := cuecontext.New()
-	scope := ctx.Encode(&bs)
-	val := ctx.CompileString(`{timestamp:block.header.timestamp,level:block.level}`, cue.Scope(scope))
-	t.Log(val)
-	assert.NoError(t, val.Err())
-}
-*/

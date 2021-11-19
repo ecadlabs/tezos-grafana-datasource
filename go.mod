@@ -4,6 +4,7 @@ go 1.17
 
 require (
 	cuelang.org/go v0.4.0
+	github.com/ecadlabs/jtree v0.0.0-20211116150854-111cf1a0624b
 	github.com/grafana/grafana-plugin-sdk-go v0.114.0
 	github.com/stretchr/testify v1.7.0
 	go.etcd.io/bbolt v1.3.6

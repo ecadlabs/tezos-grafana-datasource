@@ -1,15 +1,20 @@
 import React, { PureComponent, ChangeEvent } from 'react';
-import { AsyncMultiSelect, InlineField, InlineSwitch, Input } from '@grafana/ui';
+import { InlineField, InlineSwitch, Input, MultiSelect } from '@grafana/ui';
 import { QueryEditorProps, SelectableValue } from '@grafana/data';
 import { DataSource } from './datasource';
-import { DataSourceOptions, Query } from './types';
+import { DataSourceOptions, FieldType, Query } from './types';
 
 type Props = QueryEditorProps<DataSource, Query, DataSourceOptions>;
 
-export class QueryEditor extends PureComponent<Props> {
+interface State {
+  fields?: FieldType[];
+}
+
+export class QueryEditor extends PureComponent<Props, State> {
   private onFieldsChange = (values: Array<SelectableValue<string>>) => {
     const { onChange, query } = this.props;
-    onChange({ ...query, fields: values.map<string>((v) => v.value || '') });
+    const fields = values.filter((v) => v.value !== undefined).map((v) => v.value || '');
+    onChange({ ...query, fields: fields, expr: DataSource.buildExpression(fields) });
   };
 
   private onWithStreamingChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -28,38 +33,52 @@ export class QueryEditor extends PureComponent<Props> {
     onChange({ ...query, useExpr: event.currentTarget.checked });
   };
 
-  private loadOptions = async (): Promise<Array<SelectableValue<string>>> => {
+  private async loadOptions() {
     const { datasource } = this.props;
-    const res = await datasource.getFieldsQuery('block_info_fields');
-    return res.map<SelectableValue<string>>((v) => ({ label: `${v.selector}: ${v.type}`, value: v.selector }));
-  };
+    this.setState({ ...this.state, fields: await datasource.getFieldsQuery('block_info_fields') });
+  }
+
+  constructor(props: Readonly<Props> | Props) {
+    super(props);
+    this.state = {};
+  }
+
+  componentDidMount() {
+    this.loadOptions();
+  }
 
   render() {
     const { query } = this.props;
     if (query.fields === undefined) {
       query.fields = ['header.timestamp'];
+      query.expr = DataSource.buildExpression(query.fields);
     }
 
     const fieldsVal = (v: string[]) => v.map<SelectableValue<string>>((v) => ({ label: v, value: v }));
 
     return (
       <div className="gf-form">
-        <InlineField label="Extended">
+        <InlineField label="Expression">
           <InlineSwitch checked={query.useExpr || false} onChange={this.onUseExprChange} />
         </InlineField>
         {query.useExpr ? (
-          <InlineField label="Expression" grow>
+          <InlineField grow>
             <Input value={query.expr} type="text" onChange={this.onExprChange}></Input>
           </InlineField>
         ) : (
           <InlineField label="Select fields" grow>
-            <AsyncMultiSelect
+            <MultiSelect
               menuShouldPortal
-              defaultOptions
-              loadOptions={this.loadOptions}
+              isSearchable
+              options={this.state.fields?.map<SelectableValue<string>>((v) => ({
+                label: v.selector,
+                value: v.selector,
+                description: v.type,
+              }))}
+              isLoading={this.state.fields === undefined}
               value={fieldsVal(query.fields)}
               onChange={this.onFieldsChange}
-            ></AsyncMultiSelect>
+            ></MultiSelect>
           </InlineField>
         )}
         <InlineField label="Enable streaming">
